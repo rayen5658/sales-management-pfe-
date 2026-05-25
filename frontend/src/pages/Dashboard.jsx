@@ -1,0 +1,501 @@
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { dashboardService, userService, orderService } from '../services/api';
+import { useAuthStore } from '../stores/authStore';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer,
+} from 'recharts';
+import TunisiaMap from '../components/dashboard/TunisiaMap';
+import ErrorBoundary from '../components/common/ErrorBoundary';
+import '../styles/pages.css';
+import './Dashboard.css';
+
+// Export top products to PDF
+function exportTopProductsPDF(topProds, period) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(79, 70, 229);
+  doc.rect(0, 0, pageW, 28, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+  doc.text('Report — Top Products', 14, 12);
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.text(`Period: ${period} | Generated on ${new Date().toLocaleDateString('en-GB')}`, 14, 21);
+
+  autoTable(doc, {
+    startY: 35,
+    head: [['#', 'Product', 'Qty Sold', 'Revenue (TND)']],
+    body: topProds.map((p, i) => [
+      i + 1,
+      p.name,
+      p.qty,
+      new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 2 }).format(parseFloat(p.revenue || 0)),
+    ]),
+    headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+    bodyStyles: { fontSize: 9 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: { 0: { halign: 'center', cellWidth: 12 }, 2: { halign: 'center' }, 3: { halign: 'right' } },
+    margin: { left: 14, right: 14 },
+  });
+
+  doc.save(`top-products-${period}-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+// Export top products to CSV/Excel
+function exportTopProductsCSV(topProds, period) {
+  const headers = ['Rank', 'Product', 'Qty Sold', 'Revenue (TND)'];
+  const rows = topProds.map((p, i) => [
+    i + 1,
+    `"${p.name.replace(/"/g, '""')}"`,
+    p.qty,
+    parseFloat(p.revenue || 0).toFixed(2),
+  ]);
+  const csv = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `top-products-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const fmt = (v) =>
+  new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 0 }).format(Math.round(v || 0)) + ' TND';
+
+const PERIODS = [
+  { value: 'week',    label: 'This week' },
+  { value: 'month',   label: 'This month' },
+  { value: 'quarter', label: 'This quarter' },
+  { value: 'year',    label: 'This year' },
+  { value: 'all',     label: 'All' },
+];
+
+const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isAdminOrManager = user?.role_name === 'Administrator' || user?.role_name === 'Manager';
+  const [period, setPeriod]       = useState('year');
+  const [selectedUser, setSelectedUser] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [users, setUsers]         = useState([]);
+  const [regions, setRegions]     = useState([]);
+  const [stats, setStats]         = useState(null);
+  const [regionData, setRegionData] = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [pendingOrders, setPendingOrders] = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+
+  const load = useCallback(async (p, uid, reg, isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setLoadError('');
+    try {
+      const [s, r] = await Promise.all([
+        dashboardService.getStats(p, uid, reg),
+        dashboardService.getByRegion(),
+      ]);
+      setStats(s.data);
+      setRegionData(r.data);
+    } catch (err) {
+      setLoadError(err.response?.data?.error || 'Error loading dashboard');
+    }
+    finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    userService.getAll().then(r => {
+      setUsers(r.data);
+    }).catch(() => {});
+    dashboardService.getByRegion().then(r => {
+      setRegions(r.data.map(x => x.region));
+    }).catch(() => {});
+    if (isAdminOrManager) {
+      setPendingLoading(true);
+      orderService.getPendingAdmin()
+        .then(r => setPendingOrders(r.data))
+        .catch(() => {})
+        .finally(() => setPendingLoading(false));
+    }
+  }, [isAdminOrManager]);
+
+  useEffect(() => { load(period, selectedUser, selectedRegion); }, [period, selectedUser, selectedRegion, load]);
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: '1rem' }}>
+      <div className="spinner-lg" />
+      <p style={{ color: 'var(--text-muted)' }}>Loading dashboard...</p>
+    </div>
+  );
+
+  if (loadError) return (
+    <div className="page">
+      <div className="alert alert-error">⚠ {loadError}</div>
+      <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={() => load(period, selectedUser, selectedRegion)}>
+        Retry
+      </button>
+    </div>
+  );
+
+  const kpis       = stats?.kpis || {};
+  const monthly    = stats?.monthlyRevenue || [];
+  const topProds   = stats?.topProducts || [];
+  const topClients = stats?.topClients || [];
+
+  const variation     = kpis.variation;
+  const variationNum  = parseFloat(variation);
+  const variationColor = variationNum > 0 ? '#10b981' : variationNum < 0 ? '#ef4444' : '#64748b';
+  const variationIcon  = variationNum > 0 ? '↑' : variationNum < 0 ? '↓' : '→';
+
+  return (
+    <div className="page">
+
+      {/* ── Toolbar ── */}
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+        {PERIODS.map(p => (
+          <button key={p.value} className={`period-tab ${period === p.value ? 'active' : ''}`} onClick={() => setPeriod(p.value)}>
+            {p.label}
+          </button>
+        ))}
+        {users.length > 0 && (
+          <select value={selectedUser} onChange={e => setSelectedUser(e.target.value)}
+            style={{ padding: '0.4rem 0.75rem', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.8rem', background: '#fff' }}>
+            <option value="">All sales reps</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.firstname} {u.lastname}</option>)}
+          </select>
+        )}
+        {regions.length > 0 && (
+          <select value={selectedRegion} onChange={e => setSelectedRegion(e.target.value)}
+            style={{ padding: '0.4rem 0.75rem', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.8rem', background: '#fff' }}>
+            <option value="">All regions</option>
+            {regions.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        )}
+        <button className="btn btn-ghost" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
+          onClick={() => load(period, selectedUser, selectedRegion, true)}>
+          {refreshing ? '⟳' : '↺'} Refresh
+        </button>
+      </div>
+
+      {/* ── Section title ── */}
+      <div style={{ marginBottom: '1rem' }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text)' }}>Sales Summary</h2>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+          {PERIODS.find(p => p.value === period)?.label} — real-time data
+        </p>
+      </div>
+
+      {/* ── KPI Cards ── */}
+      <div className="kpi-grid">
+        {[
+          { label: "Revenue", value: fmt(kpis.totalRevenue), sub: variation !== null ? `${variationIcon} ${Math.abs(variationNum)}% vs prev. period` : '', subColor: variationColor, icon: '💰', bg: 'linear-gradient(135deg,#fdf4ff,#fae8ff)', border: '#e9d5ff', iconBg: 'linear-gradient(135deg,#a855f7,#7c3aed)', shadow: 'rgba(168,85,247,0.35)', color: '#7c3aed' },
+          { label: 'Orders', value: kpis.totalOrders || 0, sub: `Avg basket: ${kpis.totalOrders > 0 ? fmt(kpis.totalRevenue / kpis.totalOrders) : '—'}`, icon: '🛒', bg: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '#bfdbfe', iconBg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', shadow: 'rgba(59,130,246,0.35)', color: '#2563eb' },
+          { label: 'Active Clients', value: kpis.activeClients || 0, sub: 'Active status in database', icon: '👥', bg: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '#bbf7d0', iconBg: 'linear-gradient(135deg,#22c55e,#15803d)', shadow: 'rgba(34,197,94,0.35)', color: '#16a34a' },
+          { label: 'Products', value: kpis.totalProducts || 0, sub: kpis.lowStockProducts > 0 ? `⚠ ${kpis.lowStockProducts} out of stock` : 'Stock OK ✅', subColor: kpis.lowStockProducts > 0 ? '#ef4444' : undefined, icon: '📦', bg: 'linear-gradient(135deg,#fff7ed,#ffedd5)', border: '#fed7aa', iconBg: 'linear-gradient(135deg,#f97316,#c2410c)', shadow: 'rgba(249,115,22,0.35)', color: '#ea580c' },
+        ].map((k, i) => (
+          <div key={i} className="kpi-card" style={{ background: k.bg, borderColor: k.border }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: k.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0, boxShadow: `0 8px 20px ${k.shadow}` }}>{k.icon}</div>
+            <div>
+              <p className="kpi-label">{k.label}</p>
+              <p className="kpi-value" style={{ color: k.color, fontSize: '1.5rem' }}>{k.value}</p>
+              {k.sub && <p className="kpi-sub" style={{ color: k.subColor, fontWeight: k.subColor ? 600 : undefined }}>{k.sub}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Pending Orders Alert (Admin/Manager only) ── */}
+      {isAdminOrManager && (pendingLoading || pendingOrders.length > 0) && (
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{
+            background: pendingOrders.length > 0 ? 'linear-gradient(135deg,#fffbeb,#fef3c7)' : '#f8fafc',
+            border: `1.5px solid ${pendingOrders.length > 0 ? '#fcd34d' : '#e2e8f0'}`,
+            borderRadius: '12px',
+            padding: '1rem 1.25rem',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: pendingOrders.length > 0 ? '0.85rem' : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ fontSize: '1.1rem' }}>⏳</span>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: '0.9rem', color: '#92400e' }}>
+                    Pending Orders
+                    {pendingOrders.length > 0 && (
+                      <span style={{ marginLeft: '0.5rem', background: '#f59e0b', color: '#fff', borderRadius: '999px', padding: '0.1rem 0.55rem', fontSize: '0.75rem' }}>
+                        {pendingOrders.length}
+                      </span>
+                    )}
+                  </p>
+                  <p style={{ fontSize: '0.75rem', color: '#b45309' }}>
+                    {pendingLoading ? 'Loading...' : `${pendingOrders.length} order${pendingOrders.length !== 1 ? 's' : ''} awaiting confirmation`}
+                  </p>
+                </div>
+              </div>
+              <button
+                className="btn btn-ghost"
+                style={{ fontSize: '0.78rem', padding: '0.3rem 0.75rem', color: '#92400e', borderColor: '#fcd34d' }}
+                onClick={() => navigate('/orders')}
+              >
+                View all orders →
+              </button>
+            </div>
+
+            {!pendingLoading && pendingOrders.length > 0 && (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #fcd34d' }}>
+                      {['#', 'Client', 'Sales Rep', 'Date', 'Total (inc. tax)'].map(h => (
+                        <th key={h} style={{ padding: '0.4rem 0.6rem', textAlign: 'left', color: '#92400e', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingOrders.slice(0, 5).map((o, i) => (
+                      <tr key={o.id} style={{ borderBottom: i < Math.min(pendingOrders.length, 5) - 1 ? '1px solid #fef3c7' : 'none' }}>
+                        <td style={{ padding: '0.45rem 0.6rem', fontWeight: 700, color: '#92400e' }}>#{o.id}</td>
+                        <td style={{ padding: '0.45rem 0.6rem', fontWeight: 600 }}>{o.client_name || '—'}</td>
+                        <td style={{ padding: '0.45rem 0.6rem', color: '#78716c' }}>
+                          {`${o.created_by_firstname || ''} ${o.created_by_lastname || ''}`.trim() || '—'}
+                        </td>
+                        <td style={{ padding: '0.45rem 0.6rem', color: '#78716c' }}>
+                          {o.order_date ? new Date(o.order_date).toLocaleDateString('en-GB') : '—'}
+                        </td>
+                        <td style={{ padding: '0.45rem 0.6rem', fontWeight: 700, color: '#d97706' }}>
+                          {new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 2 }).format(parseFloat(o.amount_ttc || 0))} TND
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {pendingOrders.length > 5 && (
+                  <p style={{ fontSize: '0.75rem', color: '#b45309', marginTop: '0.5rem', textAlign: 'center' }}>
+                    +{pendingOrders.length - 5} more — <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => navigate('/orders')}>view all</span>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Row 1: Revenue + Top products ── */}
+      <div className="charts-grid">
+        <div className="card chart-card" style={{ borderTop: '3px solid #6366f1' }}>
+          <div className="chart-header">
+            <h2>Monthly Revenue</h2>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <span className="legend-dot" style={{ background: '#4f46e5' }} /><span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>N</span>
+              <span className="legend-dot" style={{ background: '#10b981' }} /><span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>N-1</span>
+              <span className="chart-badge">Current year</span>
+            </div>
+          </div>
+          {monthly.length === 0 ? <div className="empty-state" style={{ padding: '2rem' }}><p>No data</p></div> : (
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gN" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15} /><stop offset="95%" stopColor="#4f46e5" stopOpacity={0} /></linearGradient>
+                  <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.1} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} /></linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
+                <Tooltip formatter={(v, name) => [fmt(v), name === 'revenue' ? 'Revenue (N)' : 'Revenue (N-1)']} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} />
+                <Area type="monotone" dataKey="revenue_prev" stroke="#10b981" strokeWidth={1.5} strokeDasharray="4 4" fill="url(#gP)" dot={false} />
+                <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2.5} fill="url(#gN)" dot={{ fill: '#4f46e5', r: 3 }} activeDot={{ r: 5 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="card chart-card" style={{ borderTop: '3px solid #f472b6' }}>
+          <div className="chart-header">
+            <h2>Top 5 Products</h2>
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+              <span className="chart-badge">By qty sold</span>
+              {topProds.length > 0 && (
+                <>
+                  <button className="btn btn-ghost" style={{ padding: '0.25rem 0.6rem', fontSize: '0.72rem' }}
+                    onClick={() => exportTopProductsPDF(topProds, PERIODS.find(p => p.value === period)?.label || period)}
+                    title="Export as PDF">
+                    📄 PDF
+                  </button>
+                  <button className="btn btn-ghost" style={{ padding: '0.25rem 0.6rem', fontSize: '0.72rem' }}
+                    onClick={() => exportTopProductsCSV(topProds, period)}
+                    title="Export as Excel/CSV">
+                    📊 Excel
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          {topProds.length === 0 ? <div className="empty-state" style={{ padding: '2rem' }}><p>No data</p></div> : (
+            <div>
+              {topProds.map((p, i) => {
+                const max = parseFloat(topProds[0].qty);
+                const pct = Math.round((parseFloat(p.qty) / max) * 100);
+                const colors = ['#6366f1','#f472b6','#fb923c','#22c55e','#3b82f6'];
+                return (
+                  <div key={i} className="stat-row">
+                    <div className="rank-badge" style={{ background: colors[i] + '20', color: colors[i] }}>{i+1}</div>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, flex: 1, marginLeft: '0.6rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    <div className="progress-bar"><div className="progress-bar-fill" style={{ width: `${pct}%`, background: colors[i] }} /></div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: colors[i], minWidth: '40px', textAlign: 'right' }}>{p.qty}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Row 2: Top clients + KPI summary ── */}
+      <div className="charts-grid" style={{ marginTop: '1rem' }}>
+        <div className="card chart-card">
+          <div className="chart-header">
+            <h2>Top Clients</h2>
+            <span className="chart-badge" style={{ cursor: 'pointer' }} onClick={() => navigate('/clients')}>→ View all</span>
+          </div>
+          {topClients.length === 0 ? <div className="empty-state" style={{ padding: '2rem' }}><p>No data</p></div> : (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={topClients} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={110} />
+                  <Tooltip formatter={(v) => [fmt(v), 'Revenue (inc. tax)']} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} />
+                  <Bar dataKey="revenue" fill="#10b981" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {topClients.map((c, i) => {
+                  const months = parseInt(c.inactive_months || 0);
+                  const isInactive = months >= 2;
+                  return (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', padding: '0.2rem 0' }}>
+                      <span style={{ color: 'var(--text-muted)', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                      <span style={{ background: isInactive ? '#fee2e2' : '#dcfce7', color: isInactive ? '#991b1b' : '#166534', padding: '0.1rem 0.5rem', borderRadius: '999px', fontWeight: 600, fontSize: '0.72rem' }}>
+                        {isInactive ? `⚠ Inactive ${months}mo` : '✅ Active'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="card chart-card">
+          <div className="chart-header">
+            <h2>Period Summary</h2>
+            <span className="chart-badge">{PERIODS.find(p => p.value === period)?.label}</span>
+          </div>
+          <div>
+            {[
+              { label: 'Total Revenue (inc. tax)', value: fmt(kpis.totalRevenue), color: '#4f46e5', icon: '💰' },
+              { label: 'Prev. period revenue',    value: fmt(kpis.prevRevenue),   color: '#10b981', icon: '📅' },
+              { label: 'Variation',               value: variation !== null ? `${variationIcon} ${Math.abs(variationNum)}%` : '—', color: variationColor, icon: '📈' },
+              { label: 'Projection',              value: kpis.projection ? fmt(kpis.projection) : '—', color: '#8b5cf6', icon: '🔮' },
+              { label: 'Orders',                  value: kpis.totalOrders || 0, color: '#3b82f6', icon: '🛒' },
+              { label: 'Avg basket',              value: kpis.totalOrders > 0 ? fmt(kpis.totalRevenue / kpis.totalOrders) : '—', color: '#f59e0b', icon: '🧺' },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 1rem', borderBottom: i < 5 ? '1px solid #f1f5f9' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span>{item.icon}</span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{item.label}</span>
+                </div>
+                <strong style={{ fontSize: '0.9rem', color: item.color }}>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Row 3: Interactive map + region table ── */}
+      <div style={{ marginTop: '1rem' }}>
+        <div className="card chart-card">
+          <div className="chart-header">
+            <h2>Sales by Region</h2>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <span className="chart-badge">Interactive map — click a region to filter</span>
+              {selectedRegion && (
+                <button
+                  className="btn btn-ghost"
+                  style={{ padding: '0.2rem 0.6rem', fontSize: '0.72rem' }}
+                  onClick={() => setSelectedRegion('')}
+                >
+                  ✕ Reset
+                </button>
+              )}
+            </div>
+          </div>
+          {regionData.length === 0 ? (
+            <div className="empty-state" style={{ padding: '2rem' }}><p>No data</p></div>
+          ) : (
+            <div className="region-grid">
+              {/* Interactive Tunisia map */}
+              <ErrorBoundary fallback={
+                <div style={{ padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  ⚠ The map could not load.
+                </div>
+              }>
+                <TunisiaMap
+                  regionData={regionData}
+                  selectedRegion={selectedRegion}
+                  onRegionClick={(region) => setSelectedRegion(region)}
+                />
+              </ErrorBoundary>
+
+              {/* Region stats table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                      {['Region', 'Revenue (inc. tax)', 'Orders', 'Avg basket'].map(h => (
+                        <th key={h} style={{ textAlign: h === 'Région' ? 'left' : 'right', padding: '0.5rem 0.75rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {regionData.map((r, i) => (
+                      <tr
+                        key={i}
+                        style={{
+                          borderBottom: '1px solid #f8fafc',
+                          cursor: 'pointer',
+                          background: selectedRegion === r.region ? '#ede9fe' : 'transparent',
+                          transition: 'background 0.15s',
+                        }}
+                        onClick={() => setSelectedRegion(selectedRegion === r.region ? '' : r.region)}
+                      >
+                        <td style={{ padding: '0.65rem 0.75rem', fontWeight: 600 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: selectedRegion === r.region ? '#4f46e5' : COLORS[i % COLORS.length] }} />
+                            {r.region}
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#4f46e5', fontWeight: 600 }}>{fmt(r.revenue)}</td>
+                        <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>{r.orders}</td>
+                        <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: 'var(--text-muted)' }}>{fmt(r.avg_order)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

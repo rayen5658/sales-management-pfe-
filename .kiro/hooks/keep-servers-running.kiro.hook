@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Keep Servers Running",
+  "description": "Redémarre le backend et le frontend automatiquement",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "start cmd /k \"cd backend && node server.js\" && start cmd /k \"cd frontend && npm run dev\""
+  }
+}
