@@ -1,5 +1,6 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+﻿import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
 
 const fmt = (v) =>
   new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(parseFloat(v || 0)) + ' TND';
@@ -53,7 +54,8 @@ export function generateInvoicePDF(order, lines) {
 
   // Left — client info
   doc.setFillColor(...LIGHT_BG);
-  doc.roundedRect(14, 44, 85, 38, 3, 3, 'F');
+  const hasDelivery = order.notes && order.notes.includes('Contact:');
+  doc.roundedRect(14, 44, 85, hasDelivery ? 50 : 38, 3, 3, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
@@ -66,6 +68,17 @@ export function generateInvoicePDF(order, lines) {
   doc.setFontSize(9);
   doc.text(`Sales Rep: ${order.user_firstname || ''} ${order.user_lastname || ''}`.trim(), 19, 65);
   doc.text(`Client ID: ${order.client_id}`, 19, 71);
+
+  // Parse delivery info from notes if present
+  if (order.notes && order.notes.includes('Contact:')) {
+    const pairs = order.notes.split(' | ').reduce((acc, part) => {
+      const idx = part.indexOf(': ');
+      if (idx > -1) acc[part.slice(0, idx).trim()] = part.slice(idx + 2).trim();
+      return acc;
+    }, {});
+    if (pairs['Address']) doc.text(`Address: ${pairs['Address']}`, 19, 77);
+    if (pairs['Region'])  doc.text(`Region: ${pairs['Region']}`,   19, 83);
+  }
 
   // Right — order info
   doc.setFillColor(...LIGHT_BG);
@@ -82,6 +95,12 @@ export function generateInvoicePDF(order, lines) {
     ? new Date(order.order_date).toLocaleDateString('en-GB')
     : '—';
 
+  // Normalize numeric fields to prevent jsPDF formatting crashes
+  const orderAmountHT = Number(order.amount_ht ?? 0) || 0;
+  const orderTax = Number(order.tva ?? 0) || 0;
+  const orderAmountTTC = Number(order.amount_ttc ?? 0) || 0;
+
+
   const infoRows = [
     ['Date:', orderDate],
     ['Status:', STATUS_LABELS[order.status] || order.status],
@@ -95,16 +114,18 @@ export function generateInvoicePDF(order, lines) {
   });
 
   // ── Lines table ──
-  const tableRows = lines.map((l, i) => [
+  const safeLines = Array.isArray(lines) ? lines : [];
+  const tableRows = safeLines.map((l, i) => [
     i + 1,
-    l.product_reference || '—',
-    l.product_name || '—',
-    l.quantity,
-    fmt(l.unit_price),
-    fmt(l.subtotal),
+    l?.product_reference || '—',
+    l?.product_name || '—',
+    Number(l?.quantity ?? 0) || 0,
+    fmt(Number(l?.unit_price ?? 0) || 0),
+    fmt(Number(l?.subtotal ?? 0) || 0),
   ]);
 
-  autoTable(doc, {
+
+  doc.autoTable({
     startY: 90,
     head: [['#', 'Reference', 'Description', 'Qty', 'Unit Price (ex. tax)', 'Subtotal (ex. tax)']],
     body: tableRows,
@@ -137,10 +158,11 @@ export function generateInvoicePDF(order, lines) {
   const totalsX = pageW - 14 - 80;
 
   const totals = [
-    { label: 'Amount (ex. tax)', value: fmt(order.amount_ht),  bold: false },
-    { label: 'Tax (19%)',        value: fmt(order.tva),         bold: false },
-    { label: 'TOTAL (INC. TAX)', value: fmt(order.amount_ttc),  bold: true  },
+    { label: 'Amount (ex. tax)', value: fmt(orderAmountHT),  bold: false },
+    { label: 'Tax (19%)',        value: fmt(orderTax),       bold: false },
+    { label: 'TOTAL (INC. TAX)', value: fmt(orderAmountTTC), bold: true  },
   ];
+
 
   totals.forEach((t, i) => {
     const y = finalY + i * 9;

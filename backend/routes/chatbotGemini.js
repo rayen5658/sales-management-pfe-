@@ -268,7 +268,7 @@ async function runQuery(intent, { roleKey, userId, region, period, orderId }) {
   return { hint: 'Ask about products, clients, orders, order tracking, or dashboard KPIs.' };
 }
 
-router.post('/', verifyToken, async (req, res) => {
+router.post('/chat', verifyToken, async (req, res) => {
   try {
     const { message, conversationId } = req.body;
     const roleName = req.user?.role_name;
@@ -316,11 +316,11 @@ router.post('/', verifyToken, async (req, res) => {
     const prompt = `User question:\n${message}\n\nDatabase result (JSON):\n${JSON.stringify(queryData)}\n\nWrite the final answer:`;
 
     const result = await model.generateContent({
-      contents: [
-        { role: 'user', parts: [{ text: system }] },
-        { role: 'user', parts: [{ text: prompt }] },
-      ],
-    });
+  systemInstruction: system,
+  contents: [
+    { role: 'user', parts: [{ text: prompt }] },
+  ],
+});
 
     const text = result.response.text();
 

@@ -1,6 +1,7 @@
-import React from 'react';
+﻿import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FiArrowRight, FiShield, FiShoppingBag, FiUsers, FiBarChart2, FiZap } from 'react-icons/fi';
+import { LuArrowRight, LuShieldCheck, LuShoppingBag, LuUsers, LuChartBar, LuZap } from 'react-icons/lu';
+import AppLogo from '../components/common/AppLogo';
 import './Welcome.css';
 
 export default function Welcome() {
@@ -18,17 +19,13 @@ export default function Welcome() {
       {/* ── Header ── */}
       <header className="welcome-header">
         <div className="welcome-brand">
-          <div className="welcome-logo">📈</div>
-          <div className="welcome-brand-text">
-            <div className="welcome-brand-name">Sales Management</div>
-            <div className="welcome-brand-sub">Professional Dashboard</div>
-          </div>
+          <AppLogo size={34} showText={true} />
         </div>
 
         <div className="welcome-actions">
           <button className="btn-primary" onClick={() => navigate('/login')}>
             Sign In
-            <FiArrowRight size={16} />
+            <LuArrowRight size={16} />
           </button>
         </div>
       </header>
@@ -39,7 +36,7 @@ export default function Welcome() {
         <section className="hero">
           <div className="hero-copy">
             <div className="pill animate-fade-in-up delay-1">
-              <FiZap size={14} />
+              <LuZap size={14} />
               <span>Sales management, reimagined</span>
             </div>
             <h1 className="animate-fade-in-up delay-2">
@@ -54,7 +51,7 @@ export default function Welcome() {
             <div className="hero-ctas animate-fade-in-up delay-4">
               <button className="btn-primary btn-cta" onClick={() => navigate('/login')}>
                 Sign In
-                <FiArrowRight size={18} />
+                <LuArrowRight size={18} />
               </button>
             </div>
 
@@ -73,7 +70,7 @@ export default function Welcome() {
                   <div className="access-title">Sign in to your account</div>
                   <div className="access-sub">Admin, Manager, Sales Agent or Client</div>
                 </div>
-                <FiArrowRight size={14} className="access-arrow" />
+                <LuArrowRight size={14} className="access-arrow" />
               </div>
             </div>
           </div>
@@ -131,10 +128,10 @@ export default function Welcome() {
           </div>
           <div className="feature-grid">
             {[
-              { icon: <FiBarChart2 size={20} />, title: 'KPIs & Analytics',       text: 'Revenue, trends, top products and regional sales on one dashboard.' },
-              { icon: <FiShoppingBag size={20} />, title: 'Order Management',     text: 'Create, track and manage orders with full status history.' },
-              { icon: <FiUsers size={20} />, title: 'Client Portal',              text: 'Clients can log in, browse products and place orders directly.' },
-              { icon: <FiShield size={20} />, title: 'Role-based Security',       text: 'Administrator, Manager and Sales Agent — each with the right access.' },
+              { icon: <LuChartBar size={20} />, title: 'KPIs & Analytics',       text: 'Revenue, trends, top products and regional sales on one dashboard.' },
+              { icon: <LuShoppingBag size={20} />, title: 'Order Management',     text: 'Create, track and manage orders with full status history.' },
+              { icon: <LuUsers size={20} />, title: 'Client Portal',              text: 'Clients can log in, browse products and place orders directly.' },
+              { icon: <LuShieldCheck size={20} />, title: 'Role-based Security',       text: 'Administrator, Manager and Sales Agent — each with the right access.' },
             ].map(f => (
               <div key={f.title} className="feature-card">
                 <div className="feature-icon">{f.icon}</div>
@@ -150,7 +147,7 @@ export default function Welcome() {
           <div className="final-card">
             <div className="final-left">
               <div className="pill pill-strong">
-                <FiZap size={14} />
+                <LuZap size={14} />
                 <span>Ready to start?</span>
               </div>
               <h3>Sign in and explore all features</h3>
@@ -159,7 +156,7 @@ export default function Welcome() {
             <div className="final-right">
               <button className="btn-primary btn-cta" onClick={() => navigate('/login')}>
                 Sign In
-                <FiArrowRight size={18} />
+                <LuArrowRight size={18} />
               </button>
               <Link className="link-muted" to="/login">Access the dashboard →</Link>
             </div>

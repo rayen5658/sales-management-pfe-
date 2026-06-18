@@ -2,7 +2,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
+  padding: 0.85rem 2rem;
   background: #fff;
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -11,19 +11,35 @@
   box-shadow: 0 1px 8px rgba(0,0,0,0.04);
 }
 
-.topbar-left {}
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.topbar-page-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 
 .topbar-title {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--text);
   letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .topbar-subtitle {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: var(--text-muted);
   margin-top: 0.1rem;
+  line-height: 1;
 }
 
 .topbar-right {

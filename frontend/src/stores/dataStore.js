@@ -11,6 +11,7 @@ export const useDataStore = create((set) => ({
   products: [],
   productsLoading: false,
   productsError: null,
+  productsPagination: null, // { page, limit, total, totalPages, hasNext, hasPrev }
 
   // Clients
   clients: [],
@@ -21,6 +22,7 @@ export const useDataStore = create((set) => ({
   orders: [],
   ordersLoading: false,
   ordersError: null,
+  ordersPagination: null, // { page, limit, total, totalPages, hasNext, hasPrev }
 
   // Categories
   categories: [],
@@ -32,8 +34,14 @@ export const useDataStore = create((set) => ({
     set({ productsLoading: true, productsError: null });
     try {
       const response = await productService.getAll(params);
-      set({ products: response.data, productsLoading: false });
-      return response.data;
+      // Support both paginated ({ data, pagination }) and legacy flat array responses
+      const payload = response.data;
+      if (Array.isArray(payload)) {
+        set({ products: payload, productsPagination: null, productsLoading: false });
+        return payload;
+      }
+      set({ products: payload.data ?? [], productsPagination: payload.pagination, productsLoading: false });
+      return payload.data ?? [];
     } catch (err) {
       const msg = err.response?.data?.message || 'Error loading products';
       set({ productsError: msg, productsLoading: false });
@@ -186,8 +194,14 @@ export const useDataStore = create((set) => ({
     set({ ordersLoading: true, ordersError: null });
     try {
       const response = await orderService.getAll(params);
-      set({ orders: response.data, ordersLoading: false });
-      return response.data;
+      // Support both paginated ({ data, pagination }) and legacy flat array responses
+      const payload = response.data;
+      if (Array.isArray(payload)) {
+        set({ orders: payload, ordersPagination: null, ordersLoading: false });
+        return payload;
+      }
+      set({ orders: payload.data ?? [], ordersPagination: payload.pagination, ordersLoading: false });
+      return payload.data;
     } catch (err) {
       const msg = err.response?.data?.message || 'Error loading orders';
       set({ ordersError: msg, ordersLoading: false });
@@ -213,9 +227,10 @@ export const useDataStore = create((set) => ({
     set({ ordersLoading: true, ordersError: null });
     try {
       const response = await orderService.update(id, data);
-      const updated = response.data;
+      // response.data is { message, order } — extract only the order object
+      const updated = response.data.order || response.data;
       set(state => ({
-        orders: state.orders.map(o => (o.id === id ? { ...o, ...updated } : o)),
+        orders: state.orders.map(o => (o.id === id ? updated : o)),
         ordersLoading: false,
       }));
       return updated;

@@ -107,7 +107,7 @@ portalRouter.get('/me', verifyClientToken, async (req, res) => {
 // GET /api/client-portal/products
 portalRouter.get('/products', verifyClientToken, async (req, res) => {
   try {
-    const { search, category_id } = req.query;
+    const { search, category_id, min_price, max_price } = req.query;
     let query = `
       SELECT p.*, c.name AS category_name
       FROM product p
@@ -124,9 +124,42 @@ portalRouter.get('/products', verifyClientToken, async (req, res) => {
       params.push(category_id);
       query += ` AND p.category_id = $${params.length}`;
     }
+    if (min_price) {
+      params.push(parseFloat(min_price));
+      query += ` AND p.unit_price >= $${params.length}`;
+    }
+    if (max_price) {
+      params.push(parseFloat(max_price));
+      query += ` AND p.unit_price <= $${params.length}`;
+    }
 
     query += ' ORDER BY p.name ASC';
     const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/client-portal/products/:id/related
+portalRouter.get('/products/:id/related', verifyClientToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Get the product's category first
+    const prod = await pool.query('SELECT category_id FROM product WHERE id = $1', [id]);
+    if (prod.rows.length === 0) return res.json([]);
+    const category_id = prod.rows[0].category_id;
+
+    // Return up to 4 products from the same category, excluding current
+    const result = await pool.query(
+      `SELECT p.*, c.name AS category_name
+       FROM product p
+       LEFT JOIN category c ON p.category_id = c.id
+       WHERE p.category_id = $1 AND p.id != $2 AND p.stock > 0
+       ORDER BY p.name ASC
+       LIMIT 4`,
+      [category_id, id]
+    );
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -204,9 +237,9 @@ portalRouter.post('/orders', verifyClientToken, async (req, res) => {
     const amount_ttc = amount_ht + tva;
 
     const orderResult = await dbClient.query(
-      `INSERT INTO sales_order (order_date, status, amount_ht, tva, amount_ttc, client_id, user_id)
-       VALUES (NOW(), 'pending', $1, $2, $3, $4, $5) RETURNING *`,
-      [amount_ht, tva, amount_ttc, client_id, user_id]
+      `INSERT INTO sales_order (order_date, status, amount_ht, tva, amount_ttc, client_id, user_id, notes)
+       VALUES (NOW(), 'pending', $1, $2, $3, $4, $5, $6) RETURNING *`,
+      [amount_ht, tva, amount_ttc, client_id, user_id, notes || null]
     );
 
     const order = orderResult.rows[0];

@@ -1,36 +1,45 @@
-import React, { useEffect, useState } from 'react';
-import { FiPlus, FiEye, FiXCircle, FiRefreshCw, FiFileText, FiEdit2, FiClock } from 'react-icons/fi';
+﻿import React, { useEffect, useState, useCallback } from 'react';
+import { LuPlus, LuEye, LuCircleX, LuRefreshCw, LuFileText, LuPencil, LuClock, LuTruck, LuX, LuPackage, LuUser } from 'react-icons/lu';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { orderService } from '../services/api';
 import { generateInvoicePDF } from '../utils/generatePDF';
+import { ConfirmDialog, notifySuccess, notifyError, setupToasterGlobal } from '../utils/uxHelpers';
+import { useSortableTable, SortIcon, sortableThStyle } from '../hooks/useSortableTable';
+import Pagination from '../components/common/Pagination';
 import '../styles/pages.css';
 
 const STATUS = { pending: 'Pending', confirmed: 'Confirmed', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled' };
 const STATUS_FLOW = ['pending', 'confirmed', 'shipped', 'delivered'];
+const PAGE_SIZE = 20;
 
 const fmt = v => parseFloat(v || 0).toFixed(2) + ' TND';
 
 export default function OrdersPage() {
-  const { orders, fetchOrders, ordersLoading, createOrder, cancelOrder, clients, fetchClients, products, fetchProducts } = useDataStore();
+  const { orders, fetchOrders, ordersLoading, ordersPagination, createOrder, cancelOrder, clients, fetchClients, products, fetchProducts } = useDataStore();
   const { user } = useAuthStore();
   const [pdfLoading, setPdfLoading] = useState(null);
 
-  // Filters
-  const [search, setSearch]           = useState('');
+  // ── Server-side filters ────────────────────────────────────────────────────
+  const [search, setSearch]             = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterClient, setFilterClient] = useState('');
-  const [dateFrom, setDateFrom]       = useState('');
-  const [dateTo, setDateTo]           = useState('');
-  const [minAmount, setMinAmount]     = useState('');
-  const [maxAmount, setMaxAmount]     = useState('');
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [dateFrom, setDateFrom]         = useState('');
+  const [dateTo, setDateTo]             = useState('');
+  const [minAmount, setMinAmount]       = useState('');
+  const [maxAmount, setMaxAmount]       = useState('');
+  const [filtersOpen, setFiltersOpen]   = useState(false);
+  const [page, setPage]                 = useState(1);
 
   // Modals
   const [showCreate, setShowCreate]   = useState(false);
   const [showDetail, setShowDetail]   = useState(null);
+  const [detailLines, setDetailLines] = useState([]);   // order lines for detail modal
+  const [detailLoading, setDetailLoading] = useState(false);
   const [cancelModal, setCancelModal] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelConfirm, setCancelConfirm] = useState(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [editModal, setEditModal]     = useState(null); // order being edited
   const [editLines, setEditLines]     = useState([]);
   const [editClient, setEditClient]   = useState('');
@@ -39,38 +48,90 @@ export default function OrdersPage() {
   const [trackingModal, setTrackingModal] = useState(null); // { order, history, lines, summary }
   const [trackingLoading, setTrackingLoading] = useState(false);
 
+  // Ship modal
+  const [shipModal, setShipModal]           = useState(null); // order object
+  const [shipLoading, setShipLoading]       = useState(false);
+  const [shipResult, setShipResult]         = useState(null); // API response to display
+
   // Create form
   const [selectedClient, setSelectedClient] = useState('');
   const [lines, setLines] = useState([{ product_id: '', quantity: 1 }]);
   const [error, setError]   = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => { fetchOrders(); fetchClients(); fetchProducts(); }, []);
+  useEffect(() => { fetchClients(); fetchProducts(); }, []);
 
-  // Apply all filters client-side (data already loaded)
-  const filtered = orders.filter(o => {
-    const matchSearch = !search ||
-      o.client_name?.toLowerCase().includes(search.toLowerCase()) ||
-      String(o.id).includes(search);
-    const matchStatus = !filterStatus || o.status === filterStatus;
-    const matchClient = !filterClient || String(o.client_id) === filterClient;
-    const matchDateFrom = !dateFrom || new Date(o.order_date) >= new Date(dateFrom);
-    const matchDateTo   = !dateTo   || new Date(o.order_date) <= new Date(dateTo + 'T23:59:59');
-    const matchMin = !minAmount || parseFloat(o.amount_ttc) >= parseFloat(minAmount);
-    const matchMax = !maxAmount || parseFloat(o.amount_ttc) <= parseFloat(maxAmount);
-    return matchSearch && matchStatus && matchClient && matchDateFrom && matchDateTo && matchMin && matchMax;
-  });
+  // ── Fetch helpers ──────────────────────────────────────────────────────────
+  const buildParams = useCallback((p = page) => {
+    const params = { page: p, limit: PAGE_SIZE };
+    if (search.trim())   params.search     = search.trim();
+    if (filterStatus)    params.status     = filterStatus;
+    if (filterClient)    params.client_id  = filterClient;
+    if (dateFrom)        params.date_from  = dateFrom;
+    if (dateTo)          params.date_to    = dateTo;
+    if (minAmount)       params.min_amount = minAmount;
+    if (maxAmount)       params.max_amount = maxAmount;
+    return params;
+  }, [page, search, filterStatus, filterClient, dateFrom, dateTo, minAmount, maxAmount]);
 
-  const hasActiveFilters = filterStatus || filterClient || dateFrom || dateTo || minAmount || maxAmount;
+  const load = useCallback((p = page) => fetchOrders(buildParams(p)), [buildParams, fetchOrders, page]);
 
+  useEffect(() => { load(page); }, [page]); // reload when page changes
+
+  const applyFilters = () => { setPage(1); fetchOrders(buildParams(1)); };
   const resetFilters = () => {
-    setFilterStatus(''); setFilterClient('');
-    setDateFrom(''); setDateTo('');
-    setMinAmount(''); setMaxAmount('');
-    setSearch('');
+    setSearch(''); setFilterStatus(''); setFilterClient('');
+    setDateFrom(''); setDateTo(''); setMinAmount(''); setMaxAmount('');
+    setPage(1);
+    fetchOrders({ page: 1, limit: PAGE_SIZE });
   };
 
-  const addLine = () => setLines(l => [...l, { product_id: '', quantity: 1 }]);
+  // Client-side sort on the current page (no re-fetch)
+  const { sorted: sortedOrders, sortKey: oSortKey, sortDir: oSortDir, onSort: onOSort } =
+    useSortableTable(orders, 'order_date', 'desc');
+
+  const hasActiveFilters = filterStatus || filterClient || dateFrom || dateTo || minAmount || maxAmount || search;
+
+  // Bulk selection
+  const [selected, setSelected] = useState(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const toggleSelect = (id) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleSelectAll = () => {
+    if (selected.size === (sortedOrders?.length ?? 0)) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set((sortedOrders ?? []).map(o => o.id)));
+    }
+  };
+
+  const clearSelection = () => setSelected(new Set());
+
+  const handleBulkAction = async (action) => {
+    if (selected.size === 0) return;
+    setBulkLoading(true);
+    let ok = 0; let fail = 0;
+    for (const id of selected) {
+      try {
+        if (action === 'confirm') {
+          await orderService.updateStatus(id, 'confirmed');
+        } else if (action === 'cancel') {
+          await orderService.updateStatus(id, 'cancelled');
+        }
+        ok++;
+      } catch { fail++; }
+    }
+    await load(page);
+    setBulkLoading(false);
+    clearSelection();
+    if (ok > 0) notifySuccess(`${ok} order${ok > 1 ? 's' : ''} ${action === 'confirm' ? 'confirmed' : 'cancelled'} successfully`);
+    if (fail > 0) notifyError(`${fail} order${fail > 1 ? 's' : ''} could not be updated`);
+  };
   const removeLine = i => setLines(l => l.filter((_, idx) => idx !== i));
   const updateLine = (i, field, val) => setLines(l => l.map((line, idx) => idx === i ? { ...line, [field]: val } : line));
 
@@ -95,22 +156,41 @@ export default function OrdersPage() {
   };
 
   const handleCancel = async () => {
+    setCancelLoading(true);
     try {
-      await cancelOrder(cancelModal, cancelReason || 'Cancelled by user');
-      setSuccess('Order cancelled — stock restored');
+      await cancelOrder(cancelConfirm.id, cancelConfirm.reason || 'Cancelled by user');
+      notifySuccess('Order cancelled — stock restored');
       setCancelModal(null);
       setCancelReason('');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) { setError(err.response?.data?.message || 'Error during cancellation'); }
+      setCancelConfirm(null);
+      load(page);
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Error during cancellation';
+      notifyError(errMsg);
+    } finally {
+      setCancelLoading(false);
+    }
   };
 
   const handleStatusUpdate = async (id, status) => {
     try {
       await orderService.updateStatus(id, status);
       setSuccess(`Status updated: ${STATUS[status]}`);
-      fetchOrders();
+      load(page);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) { setError(err.response?.data?.message || 'Error'); }
+  };
+
+  const openDetail = async (order) => {
+    setError('');
+    setShowDetail(order);
+    setDetailLines([]);
+    setDetailLoading(true);
+    try {
+      const r = await orderService.getById(order.id);
+      setDetailLines(r.data.lines || []);
+    } catch { /* non-blocking */ }
+    finally { setDetailLoading(false); }
   };
 
   const openEdit = async (order) => {
@@ -118,10 +198,14 @@ export default function OrdersPage() {
     try {
       const r = await orderService.getById(order.id);
       const { lines } = r.data;
+      if (!lines) throw new Error('No lines in response');
       setEditModal(order);
       setEditClient(String(order.client_id));
       setEditLines(lines.map(l => ({ product_id: String(l.product_id), quantity: l.quantity })));
-    } catch { setError('Error loading order'); }
+    } catch (err) {
+      console.error('openEdit error:', err);
+      setError(err.response?.data?.message || err.message || 'Error loading order');
+    }
   };
 
   const handleEditSubmit = async (e) => {
@@ -136,7 +220,7 @@ export default function OrdersPage() {
       });
       setSuccess('Order updated successfully');
       setEditModal(null);
-      fetchOrders();
+      load(page);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) { setError(err.response?.data?.message || 'Error during update'); }
   };
@@ -148,42 +232,93 @@ export default function OrdersPage() {
       const { order, lines } = response.data;
       generateInvoicePDF(order, lines);
     } catch (err) {
-      setError('Error generating PDF');
+      // Log the full error so we can fix pdf generation deterministically
+      console.error('PDF error:', err);
+      console.error('PDF error message:', err?.message);
+      console.error('PDF error response:', err?.response);
+      notifyError(err?.response?.data?.message || err?.message || 'Error generating PDF');
     } finally {
       setPdfLoading(null);
     }
   };
 
+
   const handleViewTracking = async (order) => {
+    setError('');
     setTrackingLoading(true);
     setTrackingModal({ order, history: [], lines: [], summary: null });
     try {
       const response = await orderService.getTracking(order.id);
-      setTrackingModal({ order, ...response.data });
-    } catch {
-      setError('Error loading order tracking');
+      const data = response.data || {};
+      setTrackingModal({
+        order,
+        history: data.history || [],
+        lines:   data.lines   || [],
+        summary: data.summary || null,
+      });
+    } catch (err) {
+      console.error('tracking error:', err);
       setTrackingModal(null);
+      notifyError('Error loading order tracking');
     } finally {
       setTrackingLoading(false);
     }
   };
 
+  const handleShip = async () => {
+    if (!shipModal) return;
+    setShipLoading(true);
+    setError('');
+    try {
+      const response = await orderService.ship(shipModal.id, {});
+      const { delivery } = response.data;
+      setShipResult(delivery);
+      load(page);
+    } catch (err) {
+      setError(err.response?.data?.message || err.response?.data?.error || err.message || 'Error contacting First Delivery');
+    } finally {
+      setShipLoading(false);
+    }
+  };
+
+  const closeShipModal = () => {
+    if (shipResult) {
+      setSuccess(`Order #${shipModal.id} shipped via First Delivery — tracking: ${shipResult.tracking_number}`);
+      setTimeout(() => setSuccess(''), 6000);
+    }
+    setShipModal(null);
+    setShipResult(null);
+    setError('');
+  };
+
   const ht = calcHT();
-  const tva = ht * 0.19;
+  const TVA_RATE = 0.19; // matches backend constant
+  const tva = ht * TVA_RATE;
   const ttc = ht + tva;
+  const addLine = () => setLines(l => [...l, { product_id: '', quantity: 1 }]);
+
+  const total = ordersPagination?.total ?? (orders?.length ?? 0);
 
   return (
     <div className="page">
+      {/* ✨ Setup toaster global */}
+      {setupToasterGlobal()}
+
       <div className="page-header">
-        <h1>🛒 Orders <span className="count">{orders.length}</span></h1>
-        <button className="btn btn-primary" onClick={() => { setShowCreate(true); setError(''); }}><FiPlus /> New Order</button>
+        <h1>Orders <span className="count">{total}</span></h1>
+        <button className="btn btn-primary" onClick={() => { setShowCreate(true); setError(''); }}><LuPlus size={14} /> New Order</button>
       </div>
 
-      {success && <div className="alert alert-success">✅ {success}</div>}
-      {error && !showCreate && !cancelModal && <div className="alert alert-error">⚠ {error}</div>}
+      {success && <div className="alert alert-success">{success}</div>}
+      {error && !showCreate && !cancelModal && !editModal && !trackingModal && <div className="alert alert-error">{error}</div>}
 
       <div className="toolbar">
-        <input placeholder="Search by client or order #..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input
+          placeholder="Search by client or order #..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && applyFilters()}
+        />
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
           <option value="">All statuses</option>
           {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -192,10 +327,11 @@ export default function OrdersPage() {
           className={`btn ${hasActiveFilters ? 'btn-primary' : 'btn-ghost'}`}
           onClick={() => setFiltersOpen(!filtersOpen)}
         >
-          🔍 Advanced filters {hasActiveFilters && '●'}
+          Filters {hasActiveFilters && '●'}
         </button>
+        <button className="btn btn-primary" onClick={applyFilters}>Search</button>
         {hasActiveFilters && (
-          <button className="btn btn-ghost" onClick={resetFilters} title="Reset filters">✕ Reset</button>
+          <button className="btn btn-ghost" onClick={resetFilters} title="Reset filters">Reset</button>
         )}
       </div>
 
@@ -229,25 +365,108 @@ export default function OrdersPage() {
       )}
 
       {/* Results count */}
-      {hasActiveFilters && (
+      {hasActiveFilters && ordersPagination && (
         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-          {filtered.length} result{filtered.length !== 1 ? 's' : ''} out of {orders.length} orders
+          {ordersPagination.total} result{ordersPagination.total !== 1 ? 's' : ''} found
         </p>
       )}
 
+      {/* ── Bulk action toolbar ── */}
+      {selected.size > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '0.75rem',
+          background: 'linear-gradient(135deg,#eff6ff,#dbeafe)',
+          border: '1.5px solid #bfdbfe', borderRadius: '10px',
+          padding: '0.65rem 1rem', marginBottom: '0.75rem', flexWrap: 'wrap',
+        }}>
+          <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1e40af' }}>
+            {selected.size} order{selected.size > 1 ? 's' : ''} selected
+          </span>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => handleBulkAction('confirm')}
+              disabled={bulkLoading}
+              style={{
+                padding: '0.4rem 0.9rem', borderRadius: '7px', border: 'none',
+                background: 'linear-gradient(135deg,#10b981,#059669)',
+                color: '#fff', fontWeight: 700, fontSize: '0.8rem',
+                cursor: bulkLoading ? 'not-allowed' : 'pointer',
+                opacity: bulkLoading ? 0.7 : 1,
+                display: 'flex', alignItems: 'center', gap: '0.3rem',
+              }}
+            >
+              {bulkLoading ? "..." : "Confirm all"}
+            </button>
+            <button
+              onClick={() => handleBulkAction('cancel')}
+              disabled={bulkLoading}
+              style={{
+                padding: '0.4rem 0.9rem', borderRadius: '7px', border: 'none',
+                background: 'linear-gradient(135deg,#ef4444,#dc2626)',
+                color: '#fff', fontWeight: 700, fontSize: '0.8rem',
+                cursor: bulkLoading ? 'not-allowed' : 'pointer',
+                opacity: bulkLoading ? 0.7 : 1,
+                display: 'flex', alignItems: 'center', gap: '0.3rem',
+              }}
+            >
+              {bulkLoading ? "..." : "Cancel all"}
+            </button>
+            <button
+              onClick={clearSelection}
+              style={{
+                padding: '0.4rem 0.75rem', borderRadius: '7px',
+                border: '1.5px solid #bfdbfe', background: '#fff',
+                color: '#374151', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer',
+              }}
+            >
+              Deselect
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="table-wrap">
-        {filtered.length === 0 ? (
+        {ordersLoading ? (
+          <div className="empty-state"><p>Loading...</p></div>
+        ) : sortedOrders.length === 0 ? (
           <div className="empty-state"><p>No orders found</p></div>
         ) : (
           <table className="data-table">
             <thead>
-              <tr><th>#</th><th>Client</th><th>Date</th><th>Amount (ex. tax)</th><th>Tax</th><th>Total (inc. tax)</th><th>Status</th><th>Actions</th></tr>
+              <tr>
+                <th style={{ width: 36, textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={sortedOrders.length > 0 && selected.size === sortedOrders.length}
+                    ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < sortedOrders.length; }}
+                    onChange={toggleSelectAll}
+                    style={{ cursor: 'pointer', width: 15, height: 15 }}
+                    title="Select all"
+                  />
+                </th>
+                <th style={sortableThStyle} onClick={() => onOSort('id')}>#<SortIcon col="id" sortKey={oSortKey} sortDir={oSortDir} /></th>
+                <th style={sortableThStyle} onClick={() => onOSort('client_name')}>Client<SortIcon col="client_name" sortKey={oSortKey} sortDir={oSortDir} /></th>
+                <th style={sortableThStyle} onClick={() => onOSort('order_date')}>Date<SortIcon col="order_date" sortKey={oSortKey} sortDir={oSortDir} /></th>
+                <th style={sortableThStyle} onClick={() => onOSort('amount_ht')}>Amount (ex. tax)<SortIcon col="amount_ht" sortKey={oSortKey} sortDir={oSortDir} /></th>
+                <th>Tax</th>
+                <th style={sortableThStyle} onClick={() => onOSort('amount_ttc')}>Total (inc. tax)<SortIcon col="amount_ttc" sortKey={oSortKey} sortDir={oSortDir} /></th>
+                <th style={sortableThStyle} onClick={() => onOSort('status')}>Status<SortIcon col="status" sortKey={oSortKey} sortDir={oSortDir} /></th>
+                <th>Actions</th>
+              </tr>
             </thead>
             <tbody>
-              {filtered.map(o => (
-                <tr key={o.id}>
+              {sortedOrders.map(o => (
+                <tr key={o.id} style={{ background: selected.has(o.id) ? '#eff6ff' : undefined }}>
+                  <td style={{ textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(o.id)}
+                      onChange={() => toggleSelect(o.id)}
+                      style={{ cursor: 'pointer', width: 15, height: 15 }}
+                    />
+                  </td>
                   <td><strong>#{o.id}</strong></td>
-                  <td>{o.client_name || '—'}</td>
+                  <td>{o.client_name || '—'}{o.notes?.includes('Contact:') && <span title="Portal order — has delivery info" style={{ marginLeft:'0.4rem', background:'#dcfce7', color:'#15803d', fontSize:'0.62rem', fontWeight:700, padding:'0.1rem 0.35rem', borderRadius:'4px', verticalAlign:'middle' }}>PORTAL</span>}</td>
                   <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{o.order_date ? new Date(o.order_date).toLocaleDateString('en-GB') : '—'}</td>
                   <td>{fmt(o.amount_ht)}</td>
                   <td style={{ color: 'var(--text-muted)' }}>{fmt(o.tva)}</td>
@@ -255,27 +474,37 @@ export default function OrdersPage() {
                   <td><span className={`badge badge-${o.status}`}>{STATUS[o.status] || o.status}</span></td>
                   <td>
                     <div className="actions">
-                      <button className="btn btn-ghost btn-icon" title="View details" onClick={() => setShowDetail(o)}><FiEye size={14} /></button>
-                      <button className="btn btn-ghost btn-icon" title="Order tracking" onClick={() => handleViewTracking(o)}><FiClock size={14} /></button>
+                      <button className="btn btn-ghost btn-icon" title="View details" onClick={() => openDetail(o)}><LuEye size={14} /></button>
+                      <button className="btn btn-ghost btn-icon" title="Order tracking" onClick={() => handleViewTracking(o)}><LuClock size={14} /></button>
                       <button
                         className="btn btn-primary btn-icon"
                         title="Generate invoice PDF"
                         onClick={() => handleGeneratePDF(o.id)}
                         disabled={pdfLoading === o.id}
                       >
-                        {pdfLoading === o.id ? '⟳' : <FiFileText size={14} />}
+                        {pdfLoading === o.id ? <LuRefreshCw size={14} className="spin" /> : <LuFileText size={14} />}
                       </button>
                       {(o.status === 'pending' || o.status === 'confirmed') && (
-                        <button className="btn btn-warning btn-icon" title="Edit order" onClick={() => openEdit(o)}><FiEdit2 size={14} /></button>
+                        <button className="btn btn-warning btn-icon" title="Edit order" onClick={() => openEdit(o)}><LuPencil size={14} /></button>
+                      )}
+                      {o.status === 'confirmed' && (
+                        <button
+                          className="btn btn-icon"
+                          title="Hand to First Delivery"
+                          onClick={() => { setShipModal(o); setError(''); }}
+                          style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.3rem 0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 700 }}
+                        >
+                          Ship
+                        </button>
                       )}
                       {o.status !== 'cancelled' && o.status !== 'delivered' && (
                         <button className="btn btn-success btn-icon" title="Advance status"
                           onClick={() => { const next = STATUS_FLOW[STATUS_FLOW.indexOf(o.status) + 1]; if (next) handleStatusUpdate(o.id, next); }}>
-                          <FiRefreshCw size={14} />
+                          <LuRefreshCw size={14} />
                         </button>
                       )}
                       {o.status !== 'cancelled' && (
-                        <button className="btn btn-danger btn-icon" title="Cancel" onClick={() => { setCancelModal(o.id); setError(''); }}><FiXCircle size={14} /></button>
+                        <button className="btn btn-danger btn-icon" title="Cancel" onClick={() => { setCancelModal(o.id); setError(''); }}><LuCircleX size={14} /></button>
                       )}
                     </div>
                   </td>
@@ -291,8 +520,8 @@ export default function OrdersPage() {
         <div className="modal-overlay" onClick={() => setShowCreate(false)}>
           <div className="modal" style={{ maxWidth: '620px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>➕ New Order</h2>
-              <button className="modal-close" onClick={() => setShowCreate(false)}>✕</button>
+              <h2>New Order</h2>
+              <button className="modal-close" onClick={() => setShowCreate(false)}><LuX size={15} /></button>
             </div>
             {error && <div className="alert alert-error">{error}</div>}
             <form onSubmit={handleCreate}>
@@ -307,17 +536,34 @@ export default function OrdersPage() {
               <div style={{ marginBottom: '0.5rem' }}>
                 <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Order Lines *</label>
               </div>
-              {lines.map((line, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-                  <select value={line.product_id} onChange={e => updateLine(i, 'product_id', e.target.value)} style={{ padding: '0.55rem 0.75rem', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem', background: '#fff' }}>
-                    <option value="">-- Product --</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.name} — stock: {p.stock}</option>)}
-                  </select>
-                  <input type="number" min="1" value={line.quantity} onChange={e => updateLine(i, 'quantity', e.target.value)} style={{ padding: '0.55rem 0.75rem', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem' }} placeholder="Qty" />
-                  {lines.length > 1 && <button type="button" className="btn btn-danger btn-icon" onClick={() => removeLine(i)}>✕</button>}
-                </div>
-              ))}
-              <button type="button" className="btn btn-ghost" style={{ marginTop: '0.25rem', marginBottom: '1rem' }} onClick={addLine}><FiPlus /> Add a line</button>
+              {lines.map((line, i) => {
+                const selProd = products.find(p => String(p.id) === String(line.product_id));
+                return (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                    <div style={{ position: 'relative' }}>
+                      {selProd && (
+                        <div style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', width: 28, height: 28, borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
+                          {selProd.image
+                            ? <img src={selProd.image} alt={selProd.name} onError={e => { e.currentTarget.style.display='none'; }} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                            : <LuPackage size={18} style={{ color: "#cbd5e1" }} />
+                          }
+                        </div>
+                      )}
+                      <select
+                        value={line.product_id}
+                        onChange={e => updateLine(i, 'product_id', e.target.value)}
+                        style={{ width: '100%', padding: `0.55rem 0.75rem 0.55rem ${selProd ? '2.4rem' : '0.75rem'}`, border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem', background: '#fff' }}
+                      >
+                        <option value="">-- Product --</option>
+                        {products.map(p => <option key={p.id} value={p.id}>{p.name} — stock: {p.stock} — {parseFloat(p.unit_price).toFixed(2)} TND</option>)}
+                      </select>
+                    </div>
+                    <input type="number" min="1" value={line.quantity} onChange={e => updateLine(i, 'quantity', e.target.value)} style={{ padding: '0.55rem 0.75rem', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem' }} placeholder="Qty" />
+                    {lines.length > 1 && <button type="button" className="btn btn-danger btn-icon" onClick={() => removeLine(i)}><LuX size={15} /></button>}
+                  </div>
+                );
+              })}
+              <button type="button" className="btn btn-ghost" style={{ marginTop: '0.25rem', marginBottom: '1rem' }} onClick={addLine}><LuPlus size={14} /> Add a line</button>
 
               {ht > 0 && (
                 <div style={{ background: 'var(--bg)', borderRadius: '10px', padding: '1rem', border: '1px solid var(--border)' }}>
@@ -339,36 +585,129 @@ export default function OrdersPage() {
       {/* DETAIL MODAL */}
       {showDetail && (
         <div className="modal-overlay" onClick={() => setShowDetail(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ maxWidth: '560px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>📋 Order #{showDetail.id}</h2>
-              <button className="modal-close" onClick={() => setShowDetail(null)}>✕</button>
+              <h2>Order #{showDetail.id}</h2>
+              <button className="modal-close" onClick={() => setShowDetail(null)}><LuX size={15} /></button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+
+            {/* Order meta */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1.25rem' }}>
               {[
-                ['Client', showDetail.client_name || '—'],
-                ['Sales Rep', `${showDetail.user_firstname || ''} ${showDetail.user_lastname || ''}`.trim() || '—'],
-                ['Date', showDetail.order_date ? new Date(showDetail.order_date).toLocaleDateString('en-GB') : '—'],
-                ['Status', <span className={`badge badge-${showDetail.status}`}>{STATUS[showDetail.status]}</span>],
-                ['Amount (ex. tax)', fmt(showDetail.amount_ht)],
-                ['Tax (19%)', fmt(showDetail.tva)],
-                ['Total (inc. tax)', <strong style={{ color: 'var(--primary)' }}>{fmt(showDetail.amount_ttc)}</strong>],
-                ...(showDetail.cancel_reason ? [['Cancellation reason', showDetail.cancel_reason]] : []),
+                ['Client',            showDetail.client_name || '—'],
+                ['Sales Rep',         `${showDetail.user_firstname || ''} ${showDetail.user_lastname || ''}`.trim() || '—'],
+                ['Date',              showDetail.order_date ? new Date(showDetail.order_date).toLocaleDateString('en-GB') : '—'],
+                ['Status',            <span className={`badge badge-${showDetail.status}`}>{STATUS[showDetail.status]}</span>],
+                ...(showDetail.delivery_company ? [['Delivery',  <span style={{ color: '#16a34a', fontWeight: 700 }}>🚚 {showDetail.delivery_company}</span>]] : []),
+                ...(showDetail.tracking_number  ? [['Tracking #', <code style={{ background: '#f0fdf4', color: '#15803d', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.82rem' }}>{showDetail.tracking_number}</code>]] : []),
+                ...(showDetail.cancel_reason    ? [['Cancel reason', showDetail.cancel_reason]] : []),
               ].map(([label, value], i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{label}</span>
-                  <span style={{ fontSize: '0.875rem' }}>{value}</span>
+                <div key={i} style={{ background: '#f8fafc', borderRadius: '8px', padding: '0.6rem 0.85rem', border: '1px solid #e2e8f0' }}>
+                  <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.2rem' }}>{label}</p>
+                  <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{value}</p>
                 </div>
               ))}
             </div>
-            <div className="modal-actions">
+
+            {/* ── Delivery info (from client checkout form) ── */}
+            {(() => {
+              const raw = showDetail.notes || '';
+              if (!raw.includes('Contact:') && !raw.includes('Address:')) return null;
+              // Parse pipe-separated key: value pairs
+              const pairs = raw.split(' | ').reduce((acc, part) => {
+                const idx = part.indexOf(': ');
+                if (idx > -1) acc[part.slice(0, idx).trim()] = part.slice(idx + 2).trim();
+                return acc;
+              }, {});
+              const fields = [
+                ['Contact',  pairs['Contact']],
+                ['Phone',    pairs['Phone']],
+                ['Address',  pairs['Address']],
+                ['Region',   pairs['Region']],
+                ['Notes',    pairs['Notes']],
+              ].filter(([, v]) => v);
+              if (fields.length === 0) return null;
+              return (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
+                    Delivery Information
+                  </p>
+                  <div style={{ background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.85rem 1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      {fields.map(([label, value]) => (
+                        <div key={label} style={label === 'Notes' || label === 'Address' ? { gridColumn: '1 / -1' } : {}}>
+                          <p style={{ margin: 0, fontSize: '0.68rem', color: '#16a34a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.15rem' }}>{label}</p>
+                          <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#14532d' }}>{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Order lines with product images */}
+            <div style={{ marginBottom: '1rem' }}>
+              <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.65rem' }}>Products ordered</p>
+              {detailLoading ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>Loading...</div>
+              ) : detailLines.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.875rem' }}>No lines found</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {detailLines.map((line, i) => {
+                    const prod = products.find(p => String(p.id) === String(line.product_id));
+                    const subtotal = parseFloat(line.unit_price || 0) * parseInt(line.quantity || 0);
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #e2e8f0' }}>
+                        {/* Product image */}
+                        <div style={{ width: 48, height: 48, borderRadius: '8px', background: '#fff', border: '1px solid #e2e8f0', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {prod?.image
+                            ? <img src={prod.image} alt={prod.name} onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                            : null}
+                          <LuPackage size={20} style={{ color:"#cbd5e1", display: prod?.image ? "none" : "flex" }} />
+                        </div>
+                        {/* Name + ref */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontWeight: 700, fontSize: '0.875rem', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {line.product_name || prod?.name || '—'}
+                          </p>
+                          <code style={{ fontSize: '0.72rem', color: '#64748b', background: '#e2e8f0', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                            {line.reference || prod?.reference || '—'}
+                          </code>
+                        </div>
+                        {/* Qty + price */}
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>{line.quantity} × {parseFloat(line.unit_price || 0).toFixed(2)} TND</p>
+                          <p style={{ margin: 0, fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem' }}>{subtotal.toFixed(2)} TND</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Totals */}
+            <div style={{ background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', borderRadius: '10px', padding: '0.85rem 1rem', border: '1px solid #e2e8f0' }}>
+              {[
+                ['Subtotal (ex. tax)', fmt(showDetail.amount_ht), false],
+                ['Tax (19%)',          fmt(showDetail.tva),        false],
+              ].map(([label, val]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#64748b', marginBottom: '0.35rem' }}>
+                  <span>{label}</span><span>{val}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0', fontWeight: 800, fontSize: '1rem', color: '#1e293b' }}>
+                <span>Total (inc. tax)</span>
+                <span style={{ color: 'var(--primary)' }}>{fmt(showDetail.amount_ttc)}</span>
+              </div>
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: '1.25rem' }}>
               <button className="btn btn-ghost" onClick={() => setShowDetail(null)}>Close</button>
-              <button
-                className="btn btn-primary"
-                onClick={() => handleGeneratePDF(showDetail.id)}
-                disabled={pdfLoading === showDetail.id}
-              >
-                <FiFileText size={14} /> {pdfLoading === showDetail.id ? 'Generating...' : 'Download Invoice PDF'}
+              <button className="btn btn-primary" onClick={() => handleGeneratePDF(showDetail.id)} disabled={pdfLoading === showDetail.id}>
+                <LuFileText size={14} /> {pdfLoading === showDetail.id ? 'Generating...' : 'Download Invoice PDF'}
               </button>
             </div>
           </div>
@@ -380,8 +719,8 @@ export default function OrdersPage() {
         <div className="modal-overlay" onClick={() => setCancelModal(null)}>
           <div className="modal" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>❌ Cancel Order #{cancelModal}</h2>
-              <button className="modal-close" onClick={() => setCancelModal(null)}>✕</button>
+              <h2>Cancel Order #{cancelModal}</h2>
+              <button className="modal-close" onClick={() => setCancelModal(null)}><LuX size={15} /></button>
             </div>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.875rem' }}>Product stock will be automatically restored.</p>
             <div className="form-group">
@@ -389,8 +728,8 @@ export default function OrdersPage() {
               <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Raison de l'annulation..." />
             </div>
             <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setCancelModal(null)}>Back</button>
-              <button className="btn btn-danger" onClick={handleCancel}>Confirm Cancellation</button>
+              <button className="btn btn-ghost" onClick={() => setCancelModal(null)}>Retour</button>
+              <button className="btn btn-danger" onClick={() => setCancelConfirm({ id: cancelModal, reason: cancelReason })}>Confirmer l'annulation</button>
             </div>
           </div>
         </div>
@@ -401,8 +740,8 @@ export default function OrdersPage() {
         <div className="modal-overlay" onClick={() => setEditModal(null)}>
           <div className="modal" style={{ maxWidth: '620px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>✏️ Edit Order #{editModal.id}</h2>
-              <button className="modal-close" onClick={() => setEditModal(null)}>✕</button>
+              <h2>Edit Order #{editModal.id}</h2>
+              <button className="modal-close" onClick={() => setEditModal(null)}><LuX size={15} /></button>
             </div>
             {error && <div className="alert alert-error">{error}</div>}
             <form onSubmit={handleEditSubmit}>
@@ -416,22 +755,38 @@ export default function OrdersPage() {
               <div style={{ marginBottom: '0.5rem' }}>
                 <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Order Lines *</label>
               </div>
-              {editLines.map((line, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-                  <select value={line.product_id} onChange={e => setEditLines(l => l.map((x, idx) => idx === i ? { ...x, product_id: e.target.value } : x))}
-                    style={{ padding: '0.55rem 0.75rem', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem', background: '#fff' }}>
-                    <option value="">-- Product --</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.name} — stock: {p.stock}</option>)}
-                  </select>
-                  <input type="number" min="1" value={line.quantity}
-                    onChange={e => setEditLines(l => l.map((x, idx) => idx === i ? { ...x, quantity: e.target.value } : x))}
-                    style={{ padding: '0.55rem 0.75rem', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem' }} placeholder="Qty" />
-                  {editLines.length > 1 && <button type="button" className="btn btn-danger btn-icon" onClick={() => setEditLines(l => l.filter((_, idx) => idx !== i))}>✕</button>}
-                </div>
-              ))}
+              {editLines.map((line, i) => {
+                const selProd = products.find(p => String(p.id) === String(line.product_id));
+                return (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                    <div style={{ position: 'relative' }}>
+                      {selProd && (
+                        <div style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', width: 28, height: 28, borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
+                          {selProd.image
+                            ? <img src={selProd.image} alt={selProd.name} onError={e => { e.currentTarget.style.display='none'; }} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                            : <LuPackage size={18} style={{ color: "#cbd5e1" }} />
+                          }
+                        </div>
+                      )}
+                      <select
+                        value={line.product_id}
+                        onChange={e => setEditLines(l => l.map((x, idx) => idx === i ? { ...x, product_id: e.target.value } : x))}
+                        style={{ width: '100%', padding: `0.55rem 0.75rem 0.55rem ${selProd ? '2.4rem' : '0.75rem'}`, border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem', background: '#fff' }}
+                      >
+                        <option value="">-- Product --</option>
+                        {products.map(p => <option key={p.id} value={p.id}>{p.name} — stock: {p.stock} — {parseFloat(p.unit_price).toFixed(2)} TND</option>)}
+                      </select>
+                    </div>
+                    <input type="number" min="1" value={line.quantity}
+                      onChange={e => setEditLines(l => l.map((x, idx) => idx === i ? { ...x, quantity: e.target.value } : x))}
+                      style={{ padding: '0.55rem 0.75rem', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem' }} placeholder="Qty" />
+                    {editLines.length > 1 && <button type="button" className="btn btn-danger btn-icon" onClick={() => setEditLines(l => l.filter((_, idx) => idx !== i))}><LuX size={15} /></button>}
+                  </div>
+                );
+              })}
               <button type="button" className="btn btn-ghost" style={{ marginTop: '0.25rem', marginBottom: '1rem' }}
                 onClick={() => setEditLines(l => [...l, { product_id: '', quantity: 1 }])}>
-                <FiPlus /> Add a line
+                <LuPlus size={14} /> Add a line
               </button>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setEditModal(null)}>Cancel</button>
@@ -442,13 +797,166 @@ export default function OrdersPage() {
         </div>
       )}
 
+      {/* SHIP MODAL — First Delivery API Integration */}
+      {shipModal && (
+        <div className="modal-overlay" onClick={() => !shipLoading && closeShipModal()}>
+          <div className="modal" style={{ maxWidth: '460px' }} onClick={e => e.stopPropagation()}>
+
+            {/* ── Phase 1: Confirm ── */}
+            {!shipResult && (
+              <>
+                <div className="modal-header">
+                  <h2>Ship via First Delivery</h2>
+                  <button className="modal-close" onClick={closeShipModal} disabled={shipLoading}><LuX size={16} /></button>
+                </div>
+
+                {/* Branding */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '0.85rem',
+                  background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+                  border: '1px solid #86efac', borderRadius: '12px',
+                  padding: '1rem 1.1rem', marginBottom: '1.25rem',
+                }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: '12px', flexShrink: 0,
+                    background: 'linear-gradient(135deg,#16a34a,#15803d)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '1.5rem', boxShadow: '0 4px 12px rgba(22,163,74,0.35)',
+                  }}>🚚</div>
+                  <div>
+                    <div style={{ fontWeight: 900, color: '#15803d', fontSize: '1rem' }}>First Delivery</div>
+                    <div style={{ fontSize: '0.78rem', color: '#166534' }}>Tunisia's #1 delivery partner</div>
+                  </div>
+                  <div style={{ marginLeft: 'auto', background: '#16a34a', color: '#fff', borderRadius: '999px', padding: '0.2rem 0.65rem', fontSize: '0.72rem', fontWeight: 700 }}>
+                    API Connected
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
+                  {[
+                    ['Order', `#${shipModal.id}`],
+                    ['Client', shipModal.client_name || '—'],
+                    ['Amount', `${parseFloat(shipModal.amount_ttc || 0).toFixed(2)} TND`],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.3rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+                      <strong>{value}</strong>
+                    </div>
+                  ))}
+                </div>
+
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: 1.6 }}>
+                  Clicking <strong>Create Shipment</strong> will contact the First Delivery API, generate a tracking number and schedule a pickup automatically.
+                </p>
+
+                {error && <div className="alert alert-error">{error}</div>}
+
+                <div className="modal-actions">
+                  <button className="btn btn-ghost" onClick={closeShipModal} disabled={shipLoading}>Cancel</button>
+                  <button
+                    onClick={handleShip}
+                    disabled={shipLoading}
+                    style={{
+                      background: shipLoading ? '#86efac' : 'linear-gradient(135deg,#16a34a,#15803d)',
+                      color: '#fff', border: 'none', borderRadius: '8px',
+                      padding: '0.7rem 1.4rem', fontWeight: 800, cursor: shipLoading ? 'not-allowed' : 'pointer',
+                      fontSize: '0.9rem', boxShadow: '0 4px 12px rgba(22,163,74,0.3)',
+                      display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    }}
+                  >
+                    {shipLoading ? (
+                      <>
+                        <LuRefreshCw size={16} style={{ display:"inline-block", animation:"spin 1s linear infinite" }} />
+                        Contacting First Delivery API...
+                      </>
+                    ) : '🚚 Create Shipment'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── Phase 2: API Response ── */}
+            {shipResult && (
+              <>
+                <div className="modal-header">
+                  <h2>Shipment Created</h2>
+                  <button className="modal-close" onClick={closeShipModal}><LuX size={16} /></button>
+                </div>
+
+                {/* Success banner */}
+                <div style={{
+                  background: 'linear-gradient(135deg,#16a34a,#15803d)',
+                  borderRadius: '12px', padding: '1rem 1.25rem', marginBottom: '1.25rem',
+                  display: 'flex', alignItems: 'center', gap: '0.85rem',
+                  boxShadow: '0 4px 16px rgba(22,163,74,0.3)',
+                }}>
+                  <div style={{ width:40, height:40, borderRadius:"50%", background:"rgba(255,255,255,0.25)", display:"flex", alignItems:"center", justifyContent:"center" }}><LuPackage size={22} /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.95rem' }}>
+                      {shipResult.message}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.8)', marginTop: '0.2rem' }}>
+                      Shipment ID: {shipResult.shipment_id}
+                    </div>
+                  </div>
+                </div>
+
+                {/* API response details */}
+                <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '1rem', border: '1px solid var(--border)', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>
+                    First Delivery API Response
+                  </div>
+
+                  {/* Tracking number — highlighted */}
+                  <div style={{ background: '#fff', border: '2px solid #16a34a', borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>TRACKING NUMBER</div>
+                      <div style={{ fontWeight: 900, fontSize: '1.1rem', color: '#15803d', letterSpacing: '0.05em' }}>{shipResult.tracking_number}</div>
+                    </div>
+                    <button
+                      onClick={() => navigator.clipboard?.writeText(shipResult.tracking_number)}
+                      style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '6px', padding: '0.35rem 0.65rem', cursor: 'pointer', fontSize: '0.75rem', color: '#15803d', fontWeight: 700 }}
+                      title="Copy tracking number"
+                    >
+                      Copy
+                    </button>
+                  </div>
+
+                  {[
+                    ['Provider',           shipResult.provider],
+                    ['Status',             shipResult.status],
+                    ['Estimated Delivery', new Date(shipResult.estimated_delivery).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })],
+                    ['Pickup Scheduled',   new Date(shipResult.pickup_scheduled).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' today'],
+                    ['Delivery Fee',       `${shipResult.delivery_fee} TND`],
+                    ['Recipient',          `${shipResult.recipient.name} — ${shipResult.recipient.region}`],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.83rem' }}>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
+                      <span style={{ fontWeight: 700, color: label === 'Status' ? '#16a34a' : 'var(--text)' }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="modal-actions">
+                  <button className="btn btn-primary" onClick={closeShipModal}>
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
       {/* TRACKING MODAL */}
       {trackingModal && (
         <div className="modal-overlay" onClick={() => setTrackingModal(null)}>
           <div className="modal" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>🕐 Tracking — Order #{trackingModal.order.id}</h2>
-              <button className="modal-close" onClick={() => setTrackingModal(null)}>✕</button>
+              <h2>Tracking — Order #{trackingModal.order.id}</h2>
+              <button className="modal-close" onClick={() => setTrackingModal(null)}><LuX size={15} /></button>
             </div>
 
             {trackingLoading ? (
@@ -460,7 +968,7 @@ export default function OrdersPage() {
                   {[
                     { label: 'Client',          value: trackingModal.order.client_name || '—',                          color: '#4f46e5' },
                     { label: 'Current Status',  value: STATUS[trackingModal.summary?.current_status] || trackingModal.order.status, color: '#10b981' },
-                    { label: 'Status Changes',  value: trackingModal.summary?.total_changes ?? trackingModal.history.length, color: '#f59e0b' },
+                    { label: 'Status Changes',  value: trackingModal.summary?.total_changes ?? (trackingModal.history || []).length, color: '#f59e0b' },
                   ].map((item, i) => (
                     <div key={i} style={{ background: 'var(--bg)', borderRadius: '10px', padding: '0.75rem 1rem', border: '1px solid var(--border)' }}>
                       <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>{item.label}</p>
@@ -505,7 +1013,7 @@ export default function OrdersPage() {
                   {trackingModal.order.status === 'cancelled' && (
                     <div style={{ marginLeft: '0.75rem', marginBottom: '1.1rem' }}>
                       <span style={{ background: '#fee2e2', color: '#991b1b', padding: '0.2rem 0.65rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>
-                        ❌ Cancelled
+                        Cancelled
                       </span>
                     </div>
                   )}
@@ -516,7 +1024,7 @@ export default function OrdersPage() {
                   Change History
                 </h4>
 
-                {trackingModal.history.length === 0 ? (
+                {(trackingModal.history || []).length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
                     No status changes recorded yet.
                   </div>
@@ -525,7 +1033,7 @@ export default function OrdersPage() {
                     {/* Vertical line */}
                     <div style={{ position: 'absolute', left: '0.6rem', top: 0, bottom: 0, width: 2, background: '#e2e8f0', borderRadius: 2 }} />
 
-                    {trackingModal.history.map((entry, i) => {
+                    {(trackingModal.history || []).map((entry, i) => {
                       const statusColors = {
                         pending:   { bg: '#fef3c7', color: '#92400e' },
                         confirmed: { bg: '#dbeafe', color: '#1e40af' },
@@ -534,7 +1042,7 @@ export default function OrdersPage() {
                         cancelled: { bg: '#fee2e2', color: '#991b1b' },
                       };
                       const sc = statusColors[entry.new_status] || { bg: '#f1f5f9', color: '#475569' };
-                      const isLast = i === trackingModal.history.length - 1;
+                      const isLast = i === (trackingModal.history || []).length - 1;
                       return (
                         <div key={entry.id || i} style={{ position: 'relative', marginBottom: isLast ? 0 : '1rem', paddingLeft: '1rem' }}>
                           {/* Dot on the line */}
@@ -565,7 +1073,7 @@ export default function OrdersPage() {
                             </div>
                             {(entry.user_firstname || entry.user_lastname) && (
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                                👤 {entry.user_firstname} {entry.user_lastname}
+                                {entry.user_firstname} {entry.user_lastname}
                                 {entry.user_email && <span style={{ color: '#94a3b8' }}> · {entry.user_email}</span>}
                               </p>
                             )}
@@ -582,27 +1090,35 @@ export default function OrdersPage() {
                 )}
 
                 {/* Order lines summary */}
-                {trackingModal.lines && trackingModal.lines.length > 0 && (
+                {(trackingModal.lines || []).length > 0 && (trackingModal.lines || []).length > 0 && (
                   <>
                     <h4 style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '1.25rem 0 0.75rem' }}>
                       Order Lines
                     </h4>
-                    <table className="data-table" style={{ fontSize: '0.8rem' }}>
-                      <thead>
-                        <tr><th>Product</th><th>Ref</th><th style={{ textAlign: 'right' }}>Qty</th><th style={{ textAlign: 'right' }}>Unit Price</th><th style={{ textAlign: 'right' }}>Subtotal</th></tr>
-                      </thead>
-                      <tbody>
-                        {trackingModal.lines.map((line, i) => (
-                          <tr key={i}>
-                            <td><strong>{line.product_name || '—'}</strong></td>
-                            <td style={{ color: 'var(--text-muted)' }}><code style={{ background: '#f1f5f9', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.75rem' }}>{line.reference || '—'}</code></td>
-                            <td style={{ textAlign: 'right' }}>{line.quantity}</td>
-                            <td style={{ textAlign: 'right' }}>{parseFloat(line.unit_price || 0).toFixed(2)} TND</td>
-                            <td style={{ textAlign: 'right', color: 'var(--primary)', fontWeight: 600 }}>{(parseFloat(line.unit_price || 0) * parseInt(line.quantity || 0)).toFixed(2)} TND</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {(trackingModal.lines || []).map((line, i) => {
+                        const prod = products.find(p => String(p.id) === String(line.product_id));
+                        return (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #e2e8f0' }}>
+                            {/* Product thumbnail */}
+                            <div style={{ width: 44, height: 44, borderRadius: '8px', background: '#fff', border: '1px solid #e2e8f0', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {prod?.image
+                                ? <img src={prod.image} alt={prod.name} onError={e => { e.currentTarget.style.display='none'; }} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                                : <span style={{ fontSize: '1.2rem' }}>📦</span>
+                              }
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ margin: 0, fontWeight: 700, fontSize: '0.85rem', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line.product_name || '—'}</p>
+                              <code style={{ fontSize: '0.72rem', color: '#64748b', background: '#f1f5f9', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>{line.reference || '—'}</code>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>{line.quantity} × {parseFloat(line.unit_price || 0).toFixed(2)} TND</p>
+                              <p style={{ margin: 0, fontWeight: 700, color: 'var(--primary)', fontSize: '0.9rem' }}>{(parseFloat(line.unit_price || 0) * parseInt(line.quantity || 0)).toFixed(2)} TND</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </>
                 )}
               </>
@@ -615,7 +1131,7 @@ export default function OrdersPage() {
                 onClick={() => handleGeneratePDF(trackingModal.order.id)}
                 disabled={pdfLoading === trackingModal.order.id}
               >
-                <FiFileText size={14} /> {pdfLoading === trackingModal.order.id ? 'Generating...' : 'Download Invoice'}
+                <LuFileText size={14} /> {pdfLoading === trackingModal.order.id ? 'Generating...' : 'Download Invoice'}
               </button>
             </div>
           </div>

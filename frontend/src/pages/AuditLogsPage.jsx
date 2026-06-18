@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { auditService } from '../services/api';
 import '../styles/pages.css';
 
 const ACTION_COLORS = {
-  LOGIN:              { bg: '#dbeafe', color: '#1e40af', icon: '🔐' },
-  USER_STATUS_CHANGE: { bg: '#fef3c7', color: '#92400e', icon: '👤' },
-  PASSWORD_RESET:     { bg: '#ffedd5', color: '#9a3412', icon: '🔒' },
-  USER_DELETE:        { bg: '#fee2e2', color: '#991b1b', icon: '🗑️' },
-  ORDER_CANCEL:       { bg: '#fee2e2', color: '#991b1b', icon: '❌' },
+  LOGIN:              { bg: '#dbeafe', color: '#1e40af', icon: 'LOGIN' },
+  USER_STATUS_CHANGE: { bg: '#fef3c7', color: '#92400e', icon: 'USER' },
+  PASSWORD_RESET:     { bg: '#ffedd5', color: '#9a3412', icon: 'PWD' },
+  USER_DELETE:        { bg: '#fee2e2', color: '#991b1b', icon: 'DEL' },
+  ORDER_CANCEL:       { bg: '#fee2e2', color: '#991b1b', icon: 'X' },
+  ORDER_SHIPPED:      { bg: '#dcfce7', color: '#166534', icon: 'SHIP' },
+  CLIENT_ARCHIVE:     { bg: '#fef3c7', color: '#92400e', icon: 'ARC' },
+  CLIENT_RESTORE:     { bg: '#dcfce7', color: '#166534', icon: 'RST' },
 };
 
 export default function AuditLogsPage() {
@@ -51,7 +54,7 @@ export default function AuditLogsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>📋 Audit Logs <span className="count">{logs.length}</span></h1>
+        <h1>Audit Logs <span className="count">{logs.length}</span></h1>
       </div>
 
       <div className="toolbar">
@@ -82,7 +85,7 @@ export default function AuditLogsPage() {
             </thead>
             <tbody>
               {filtered.map(log => {
-                const style = ACTION_COLORS[log.action] || { bg: '#f1f5f9', color: '#475569', icon: '📝' };
+                const style = ACTION_COLORS[log.action] || { bg: '#f1f5f9', color: '#475569', icon: '...' };
                 return (
                   <tr key={log.id}>
                     <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{log.id}</td>
@@ -108,7 +111,7 @@ export default function AuditLogsPage() {
                         fontWeight: 600,
                         whiteSpace: 'nowrap',
                       }}>
-                        {style.icon} {log.action}
+                        {log.action}
                       </span>
                     </td>
                     <td style={{ fontSize: '0.875rem', color: 'var(--text-muted)', maxWidth: '300px' }}>

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
+﻿import React, { useEffect, useState } from 'react';
+import { LuPlus, LuPencil, LuTrash2 } from 'react-icons/lu';
 import { useDataStore } from '../stores/dataStore';
+import { useSortableTable, SortIcon, sortableThStyle } from '../hooks/useSortableTable';
 import '../styles/pages.css';
 
 const EMPTY = { name: '', description: '', image: '', parent_id: '' };
@@ -17,6 +18,8 @@ export default function CategoriesPage() {
   useEffect(() => { fetchCategories(); }, []);
 
   const filtered = categories.filter(c => c.name?.toLowerCase().includes(search.toLowerCase()));
+
+  const { sorted: sortedCats, sortKey: catSortKey, sortDir: catSortDir, onSort: onCatSort } = useSortableTable(filtered, 'name', 'asc');
 
   const openCreate = () => { setForm(EMPTY); setEditing(null); setError(''); setShowModal(true); };
   const openEdit = (c) => { setForm({ name: c.name || '', description: c.description || '', image: c.image || '', parent_id: c.parent_id || '' }); setEditing(c.id); setError(''); setShowModal(true); };
@@ -46,8 +49,8 @@ export default function CategoriesPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>🗂️ Categories <span className="count">{categories.length}</span></h1>
-        <button className="btn btn-primary" onClick={openCreate}><FiPlus /> New Category</button>
+        <h1>Categories <span className="count">{categories.length}</span></h1>
+        <button className="btn btn-primary" onClick={openCreate}><LuPlus size={14} /> New Category</button>
       </div>
 
       {success && <div className="alert alert-success">✅ {success}</div>}
@@ -63,10 +66,17 @@ export default function CategoriesPage() {
         ) : (
           <table className="data-table">
             <thead>
-              <tr><th>#</th><th>Name</th><th>Description</th><th>Parent Category</th><th>Products</th><th>Actions</th></tr>
+              <tr>
+                <th style={sortableThStyle} onClick={() => onCatSort('id')}>#<SortIcon col="id" sortKey={catSortKey} sortDir={catSortDir} /></th>
+                <th style={sortableThStyle} onClick={() => onCatSort('name')}>Name<SortIcon col="name" sortKey={catSortKey} sortDir={catSortDir} /></th>
+                <th>Description</th>
+                <th>Parent Category</th>
+                <th style={sortableThStyle} onClick={() => onCatSort('product_count')}>Products<SortIcon col="product_count" sortKey={catSortKey} sortDir={catSortDir} /></th>
+                <th>Actions</th>
+              </tr>
             </thead>
             <tbody>
-              {filtered.map(c => (
+              {sortedCats.map(c => (
                 <tr key={c.id}>
                   <td style={{ color: 'var(--text-muted)' }}>{c.id}</td>
                   <td><strong>{c.name}</strong></td>
@@ -79,8 +89,8 @@ export default function CategoriesPage() {
                   </td>
                   <td>
                     <div className="actions">
-                      <button className="btn btn-warning btn-icon" title="Edit" onClick={() => openEdit(c)}><FiEdit2 size={14} /></button>
-                      <button className="btn btn-danger btn-icon" title="Delete" onClick={() => handleDelete(c.id, c.name)}><FiTrash2 size={14} /></button>
+                      <button className="btn btn-warning btn-icon" title="Edit" onClick={() => openEdit(c)}><LuPencil size={14} /></button>
+                      <button className="btn btn-danger btn-icon" title="Delete" onClick={() => handleDelete(c.id, c.name)}><LuTrash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -94,7 +104,7 @@ export default function CategoriesPage() {
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{editing ? '✏️ Edit Category' : '➕ New Category'}</h2>
+              <h2>{editing ? 'Edit Category' : 'New Category'}</h2>
               <button className="modal-close" onClick={closeModal}>✕</button>
             </div>
             {error && <div className="alert alert-error">{error}</div>}

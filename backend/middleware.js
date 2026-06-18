@@ -16,6 +16,11 @@ const verifyToken = (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // Reject client portal tokens — they must use verifyClientToken in clientPortal routes
+    if (decoded.client_portal) {
+      return res.status(403).json({ message: 'Access denied: client portal token cannot access staff endpoints' });
+    }
+
     req.user = decoded;
 
     next();

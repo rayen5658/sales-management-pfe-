@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Product Image Finder</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 1rem; background: #f8fafc; }
+  h1 { color: #1e1b4b; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+  .card { background: white; border-radius: 12px; padding: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); text-align: center; border: 2px solid transparent; }
+  .card.ok   { border-color: #22c55e; }
+  .card.fail { border-color: #ef4444; }
+  .card.wait { border-color: #fbbf24; }
+  .imgbox { width:100%; height:150px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:8px; overflow:hidden; margin-bottom:.5rem; }
+  .imgbox img { max-width:100%; max-height:150px; object-fit:contain; }
+  strong { font-size:.82rem; display:block; margin-bottom:.3rem; }
+  code { font-size:.7rem; color:#6b7280; background:#f1f5f9; padding:.1rem .3rem; border-radius:3px; }
+  .badge { font-size:.7rem; padding:.2rem .6rem; border-radius:20px; display:inline-block; margin-top:.4rem; font-weight:700; }
+  .badge.ok   { background:#dcfce7; color:#166534; }
+  .badge.fail { background:#fee2e2; color:#991b1b; }
+  .badge.wait { background:#fef9c3; color:#854d0e; }
+  #sqlbox { background:#0f172a; color:#7dd3fc; padding:1.5rem; border-radius:12px; white-space:pre; font-size:.75rem; margin-top:2rem; overflow-x:auto; }
+  .btns { display:flex; gap:.75rem; margin-top:1rem; flex-wrap:wrap; }
+  button { background:#4f46e5; color:white; border:none; padding:.6rem 1.2rem; border-radius:8px; cursor:pointer; font-size:.875rem; font-weight:600; }
+  #summary { font-weight:700; margin:1rem 0; font-size:.9rem; }
+  .info { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:.75rem 1rem; margin-bottom:1rem; font-size:.875rem; color:#1e40af; }
+</style>
+</head>
+<body>
+<h1>🖼️ Product Image Verifier v3</h1>
+<div class="info">Testing images that are known to allow cross-origin loading. Green = real photo working.</div>
+<div id="summary">⏳ Testing...</div>
+<div class="btns">
+  <button onclick="copySQL()">📋 Copy SQL to pgAdmin</button>
+</div>
+<div class="grid" id="grid"></div>
+<pre id="sqlbox">-- waiting...</pre>
+
+<script>
+// Only using sources confirmed to allow hotlinking from any origin
+const products = [
+  { ref:'LAP-DELL-5530',     name:'Dell Latitude 5530',       candidates:[
+    'https://m.media-amazon.com/images/I/71TNnOBMFRL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/61XBID4KZBL._AC_SL1500_.jpg',
+  ]},
+  { ref:'LAP-HP-840G9',      name:'HP EliteBook 840 G9',      candidates:[
+    'https://m.media-amazon.com/images/I/61FmE4JLSPL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/71iIjHyOmVL._AC_SL1500_.jpg',
+  ]},
+  { ref:'PC-LENOVO-M70Q',    name:'Lenovo ThinkCentre M70q',  candidates:[
+    'https://m.media-amazon.com/images/I/51FJGLGfYXL._AC_SL1000_.jpg',
+    'https://m.media-amazon.com/images/I/41nOEWHbbaL._AC_SL1000_.jpg',
+  ]},
+  { ref:'LAP-ASUS-B1500',    name:'ASUS ExpertBook B1500',    candidates:[
+    'https://m.media-amazon.com/images/I/71Vy5+HBPEL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/61EkJhFqnjL._AC_SL1500_.jpg',
+  ]},
+  { ref:'PHN-SAM-A54',       name:'Samsung Galaxy A54 5G',    candidates:[
+    'https://fdn2.gsmarena.com/vv/bigpic/samsung-galaxy-a54-5g.jpg',
+    'https://fdn2.gsmarena.com/vv/pics/samsung/samsung-galaxy-a54-5g-4.jpg',
+  ]},
+  { ref:'TAB-SAM-A8',        name:'Samsung Galaxy Tab A8',    candidates:[
+    'https://fdn2.gsmarena.com/vv/bigpic/samsung-galaxy-tab-a8-2021.jpg',
+    'https://fdn2.gsmarena.com/vv/pics/samsung/samsung-galaxy-tab-a8-2021-1.jpg',
+  ]},
+  { ref:'PHN-XIAO-12T',      name:'Xiaomi 12T Pro',           candidates:[
+    'https://fdn2.gsmarena.com/vv/bigpic/xiaomi-12t-pro.jpg',
+  ]},
+  { ref:'NET-TP-AX73',       name:'TP-Link Archer AX73',      candidates:[
+    'https://m.media-amazon.com/images/I/7184qlNJkEL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/81jmSQR-WRL._AC_SL1500_.jpg',
+  ]},
+  { ref:'NET-CISCO-SG110',   name:'Cisco SG110-16 Switch',    candidates:[
+    'https://m.media-amazon.com/images/I/71w3vSNFsRL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/61WHnPaD5LL._AC_SL1000_.jpg',
+  ]},
+  { ref:'NET-UBNT-AP6',      name:'Ubiquiti UniFi U6 Lite',   candidates:[
+    'https://m.media-amazon.com/images/I/51pq3kODaYL._AC_SL1000_.jpg',
+    'https://m.media-amazon.com/images/I/71dLTfJl1SL._AC_SL1000_.jpg',
+  ]},
+  { ref:'MON-DELL-P2422H',   name:'Dell P2422H Monitor',      candidates:[
+    'https://m.media-amazon.com/images/I/81LtHBvfklL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/91oXnFHAhCL._AC_SL1500_.jpg',
+  ]},
+  { ref:'KBD-LOG-MX',        name:'Logitech MX Keys',         candidates:[
+    'https://m.media-amazon.com/images/I/71ni4GiGHPL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/71oXkMCGGGL._AC_SL1500_.jpg',
+  ]},
+  { ref:'MSE-LOG-MX3',       name:'Logitech MX Master 3S',    candidates:[
+    'https://resource.logitech.com/w_600,c_limit,q_auto,f_auto/d_transparent.gif/content/dam/logitech/en/products/mice/mx-master-3s/gallery/mx-master-3s-mouse-top-view-graphite.png',
+    'https://m.media-amazon.com/images/I/61ni3t1ryQL._AC_SL1500_.jpg',
+  ]},
+  { ref:'SSD-SAM-870EVO',    name:'Samsung 870 EVO 1TB',      candidates:[
+    'https://m.media-amazon.com/images/I/81+jNVOUsJL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/71jHg5YFXJL._AC_SL1500_.jpg',
+  ]},
+  { ref:'SSD-WD-SN770',      name:'WD Black SN770 500GB',     candidates:[
+    'https://m.media-amazon.com/images/I/61fNVPJqURL._AC_SL1000_.jpg',
+    'https://m.media-amazon.com/images/I/51N-u9RPHML._AC_SL1000_.jpg',
+  ]},
+  { ref:'RAM-KING-DDR4',     name:'Kingston Fury 16GB DDR4',  candidates:[
+    'https://m.media-amazon.com/images/I/71iVtcqjIQL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/61oVJPKJrHL._AC_SL1500_.jpg',
+  ]},
+  { ref:'PRN-HP-M404DN',     name:'HP LaserJet M404dn',       candidates:[
+    'https://m.media-amazon.com/images/I/61H40lLxSUL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/71biRCMEiNL._AC_SL1500_.jpg',
+  ]},
+  { ref:'PRN-EPSON-L3250',   name:'Epson EcoTank L3250',      candidates:[
+    'https://m.media-amazon.com/images/I/71pPRqnFGQL._AC_SL1500_.jpg',
+    'https://m.media-amazon.com/images/I/61EGFqDmWRL._AC_SL1500_.jpg',
+  ]},
+  { ref:'CAM-HIKVISION-2CD', name:'Hikvision 4MP IP Camera',  candidates:[
+    'https://m.media-amazon.com/images/I/71HyGSv0EAL._AC_SL1000_.jpg',
+    'https://m.media-amazon.com/images/I/61QRgFuqFML._AC_SL1000_.jpg',
+  ]},
+  { ref:'NVR-HIKVISION-8CH', name:'Hikvision 8-Ch NVR',       candidates:[
+    'https://m.media-amazon.com/images/I/81TgG+2YJEL._AC_SL1000_.jpg',
+    'https://m.media-amazon.com/images/I/61Ot3FKDSSL._AC_SL1000_.jpg',
+  ]},
+];
+
+const state = {};
+products.forEach(p => state[p.ref] = { status:'wait', url:null, idx:0 });
+
+function tryImage(p) {
+  const url = p.candidates[state[p.ref].idx];
+  if (!url) { state[p.ref].status = 'fail'; render(p); updateAll(); return; }
+  const img = new Image();
+  img.onload = () => {
+    if (img.naturalWidth > 50) {
+      state[p.ref] = { status:'ok', url, idx: state[p.ref].idx };
+    } else {
+      state[p.ref].idx++;
+      tryImage(p); return;
+    }
+    render(p); updateAll();
+  };
+  img.onerror = () => {
+    state[p.ref].idx++;
+    tryImage(p);
+  };
+  img.src = url;
+}
+
+function render(p) {
+  const s = state[p.ref];
+  let card = document.getElementById('card-'+p.ref);
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'card-'+p.ref;
+    document.getElementById('grid').appendChild(card);
+  }
+  card.className = 'card ' + s.status;
+  card.innerHTML = `
+    <strong>${p.name}</strong>
+    <div class="imgbox">
+      ${s.status==='ok'
+        ? `<img src="${s.url}" alt="${p.name}" />`
+        : `<span style="font-size:2.5rem">${s.status==='fail'?'❌':'⏳'}</span>`}
+    </div>
+    <code>${p.ref}</code><br>
+    <span class="badge ${s.status}">
+      ${s.status==='ok'?'✅ Working':s.status==='fail'?'❌ Failed':'⏳ Testing'}
+    </span>`;
+}
+
+function updateAll() {
+  const ok = products.filter(p => state[p.ref].status==='ok').length;
+  const fail = products.filter(p => state[p.ref].status==='fail').length;
+  const wait = products.length - ok - fail;
+  document.getElementById('summary').innerHTML =
+    `✅ <span style="color:#166534">${ok} working</span>  ` +
+    `❌ <span style="color:#991b1b">${fail} failed</span>  ` +
+    `⏳ <span style="color:#854d0e">${wait} testing</span>`;
+
+  let sql = '-- Paste ALL of this in pgAdmin and run:\n\n';
+  products.forEach(p => {
+    if (state[p.ref].status === 'ok') {
+      sql += `UPDATE product SET image = '${state[p.ref].url}'\n  WHERE reference = '${p.ref}';\n`;
+    }
+  });
+  const failed = products.filter(p => state[p.ref].status==='fail');
+  if (failed.length) {
+    sql += '\n-- ❌ Still broken:\n';
+    failed.forEach(p => sql += `-- ${p.ref}  (${p.name})\n`);
+  }
+  document.getElementById('sqlbox').textContent = sql;
+}
+
+function copySQL() {
+  navigator.clipboard.writeText(document.getElementById('sqlbox').textContent)
+    .then(() => alert('✅ Copied! Now paste in pgAdmin and run.'));
+}
+
+// Start
+products.forEach(p => { render(p); tryImage(p); });
+</script>
+</body>
+</html>

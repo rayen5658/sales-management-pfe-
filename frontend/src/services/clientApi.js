@@ -36,12 +36,13 @@ clientApi.interceptors.response.use(
 );
 
 export const clientPortalService = {
-  getMe:        ()             => clientApi.get('/client-portal/me'),
-  getProducts:  (params)       => clientApi.get('/client-portal/products', { params }),
-  getCategories:()             => clientApi.get('/client-portal/categories'),
-  placeOrder:   (data)         => clientApi.post('/client-portal/orders', data),
-  getOrders:    ()             => clientApi.get('/client-portal/orders'),
-  getOrderById: (id)           => clientApi.get(`/client-portal/orders/${id}`),
+  getMe:           ()       => clientApi.get('/client-portal/me'),
+  getProducts:     (params) => clientApi.get('/client-portal/products', { params }),
+  getRelated:      (id)     => clientApi.get(`/client-portal/products/${id}/related`),
+  getCategories:   ()       => clientApi.get('/client-portal/categories'),
+  placeOrder:      (data)   => clientApi.post('/client-portal/orders', data),
+  getOrders:       ()       => clientApi.get('/client-portal/orders'),
+  getOrderById:    (id)     => clientApi.get(`/client-portal/orders/${id}`),
 };
 
 // Admin-only: manage portal access (uses staff token from main api.js)

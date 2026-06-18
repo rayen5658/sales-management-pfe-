@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { FiPlus, FiEdit2, FiTrash2, FiClock, FiArchive, FiRefreshCw, FiKey } from 'react-icons/fi';
+﻿import React, { useEffect, useState } from 'react';
+import { LuPlus, LuPencil, LuTrash2, LuClock, LuArchive, LuRefreshCw, LuKeyRound } from 'react-icons/lu';
 import { useDataStore } from '../stores/dataStore';
 import { clientService } from '../services/api';
 import { clientPortalAdminService } from '../services/clientApi';
+import { useSortableTable, SortIcon, sortableThStyle } from '../hooks/useSortableTable';
 import '../styles/pages.css';
 
 const EMPTY = { company_name: '', address: '', region: '', email: '', phone: '', segment: 'PME', status: 'active' };
@@ -42,6 +43,8 @@ export default function ClientsPage() {
     const matchStatus  = !filterStatus || c.status === filterStatus;
     return matchSearch && matchRegion && matchStatus;
   });
+
+  const { sorted: sortedClients, sortKey: cSortKey, sortDir: cSortDir, onSort: onCSort } = useSortableTable(filtered, 'company_name', 'asc');
 
   const archivedCount = clients.filter(c => c.status === 'archived').length;
 
@@ -151,8 +154,8 @@ export default function ClientsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>👥 Clients <span className="count">{clients.filter(c => c.status !== 'archived').length}</span></h1>
-        <button className="btn btn-primary" onClick={openCreate}><FiPlus /> New Client</button>
+        <h1>Clients <span className="count">{clients.filter(c => c.status !== 'archived').length}</span></h1>
+        <button className="btn btn-primary" onClick={openCreate}><LuPlus size={14} /> New Client</button>
       </div>
 
       {success && <div className="alert alert-success">✅ {success}</div>}
@@ -183,7 +186,7 @@ export default function ClientsPage() {
           padding: '0.65rem 1rem', marginBottom: '0.75rem',
           display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: '#92400e',
         }}>
-          <FiArchive size={14} />
+          <LuArchive size={14} />
           <span>You are viewing archived clients. Click <strong>Restore</strong> to reactivate them.</span>
         </div>
       )}
@@ -197,18 +200,18 @@ export default function ClientsPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Company Name</th>
-                <th>Region</th>
-                <th>Email</th>
+                <th style={sortableThStyle} onClick={() => onCSort('id')}>#<SortIcon col="id" sortKey={cSortKey} sortDir={cSortDir} /></th>
+                <th style={sortableThStyle} onClick={() => onCSort('company_name')}>Company Name<SortIcon col="company_name" sortKey={cSortKey} sortDir={cSortDir} /></th>
+                <th style={sortableThStyle} onClick={() => onCSort('region')}>Region<SortIcon col="region" sortKey={cSortKey} sortDir={cSortDir} /></th>
+                <th style={sortableThStyle} onClick={() => onCSort('email')}>Email<SortIcon col="email" sortKey={cSortKey} sortDir={cSortDir} /></th>
                 <th>Phone</th>
-                <th>Segment</th>
-                <th>Status</th>
+                <th style={sortableThStyle} onClick={() => onCSort('segment')}>Segment<SortIcon col="segment" sortKey={cSortKey} sortDir={cSortDir} /></th>
+                <th style={sortableThStyle} onClick={() => onCSort('status')}>Status<SortIcon col="status" sortKey={cSortKey} sortDir={cSortDir} /></th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(c => (
+              {sortedClients.map(c => (
                 <tr key={c.id} style={{ opacity: c.status === 'archived' ? 0.65 : 1 }}>
                   <td style={{ color: 'var(--text-muted)' }}>{c.id}</td>
                   <td>
@@ -236,7 +239,7 @@ export default function ClientsPage() {
                           title="Order history"
                           onClick={() => handleViewHistory(c)}
                         >
-                          <FiClock size={14} />
+                          <LuClock size={14} />
                         </button>
                       )}
                       {c.status !== 'archived' && (
@@ -246,7 +249,7 @@ export default function ClientsPage() {
                           onClick={() => { setPortalModal(c); setPortalPassword(''); setError(''); setShowPortalPassword(false); }}
                           style={{ color: '#4f46e5' }}
                         >
-                          <FiKey size={14} />
+                          <LuKeyRound size={14} />
                         </button>
                       )}
                       {c.status !== 'archived' && (
@@ -255,7 +258,7 @@ export default function ClientsPage() {
                           title="Edit"
                           onClick={() => openEdit(c)}
                         >
-                          <FiEdit2 size={14} />
+                          <LuPencil size={14} />
                         </button>
                       )}
                       {c.status !== 'archived' ? (
@@ -265,7 +268,7 @@ export default function ClientsPage() {
                           onClick={() => handleArchive(c.id, c.company_name)}
                           style={{ color: '#92400e' }}
                         >
-                          <FiArchive size={14} />
+                          <LuArchive size={14} />
                         </button>
                       ) : (
                         <button
@@ -274,7 +277,7 @@ export default function ClientsPage() {
                           onClick={() => handleRestore(c.id, c.company_name)}
                           style={{ color: '#16a34a' }}
                         >
-                          <FiRefreshCw size={14} />
+                          <LuRefreshCw size={14} />
                         </button>
                       )}
                       {c.status === 'archived' && (
@@ -283,7 +286,7 @@ export default function ClientsPage() {
                           title="Delete permanently"
                           onClick={() => handleDelete(c.id, c.company_name)}
                         >
-                          <FiTrash2 size={14} />
+                          <LuTrash2 size={14} />
                         </button>
                       )}
                     </div>
@@ -300,7 +303,7 @@ export default function ClientsPage() {
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{editing ? '✏️ Edit Client' : '➕ New Client'}</h2>
+              <h2>{editing ? 'Edit Client' : 'New Client'}</h2>
               <button className="modal-close" onClick={closeModal}>✕</button>
             </div>
             {error && <div className="alert alert-error">{error}</div>}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Image Test</title>
+<style>
+body { font-family: system-ui; padding: 2rem; background: #f8fafc; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+.card { background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center; }
+.card img { width: 150px; height: 150px; object-fit: contain; background: #f1f5f9; border-radius: 8px; }
+.card p { font-size: 0.75rem; margin: 0.5rem 0 0; }
+.ok { color: #16a34a; font-weight: 700; }
+.fail { color: #dc2626; font-weight: 700; }
+</style>
+</head>
+<body>
+<h1>🖼️ Local Image Test</h1>
+<p>Testing if images load from <code>/products/</code> folder</p>
+<div class="grid" id="grid"></div>
+
+<script>
+const images = [
+  { file: 'MSE-LOG-MX3.jpg', name: 'Logitech MX Master 3S' },
+  { file: 'PHN-XIAO-12T.jpg', name: 'Xiaomi 12T Pro' },
+  { file: 'SSD-SAM-870EVO.jpg', name: 'Samsung 870 EVO' },
+  { file: 'TAB-SAM-A8.jpg', name: 'Samsung Tab A8' },
+  { file: 'LAP-DELL-5530.svg', name: 'Dell Latitude 5530' },
+  { file: 'LAP-HP-840G9.svg', name: 'HP EliteBook 840' },
+  { file: 'NET-TP-AX73.svg', name: 'TP-Link Archer AX73' },
+  { file: 'PHN-SAM-A54.svg', name: 'Samsung A54 5G' },
+];
+
+images.forEach(item => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <img src="/products/${item.file}" alt="${item.name}" 
+         onload="this.nextElementSibling.innerHTML='<span class=ok>✅ Loaded</span>'"
+         onerror="this.nextElementSibling.innerHTML='<span class=fail>❌ Failed</span>'" />
+    <p>⏳ Loading...</p>
+    <p>${item.name}</p>
+    <code>${item.file}</code>
+  `;
+  document.getElementById('grid').appendChild(card);
+});
+</script>
+</body>
+</html>

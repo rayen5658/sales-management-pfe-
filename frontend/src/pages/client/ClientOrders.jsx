@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiEye } from 'react-icons/fi';
+import { LuArrowLeft, LuEye, LuRefreshCw, LuShoppingCart } from 'react-icons/lu';
 import { useClientAuthStore } from '../../stores/clientAuthStore';
 import { clientPortalService } from '../../services/clientApi';
+import { notifySuccess, notifyError, setupToasterGlobal } from '../../utils/uxHelpers';
+
+import { CART_STORAGE_KEY } from '../../utils/constants';
 
 const STATUS = {
   pending:   { label: 'Pending',   color: '#92400e', bg: '#fef3c7' },
@@ -23,8 +26,9 @@ export default function ClientOrders() {
   const [orders, setOrders]     = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
-  const [detail, setDetail]     = useState(null); // { order, lines, history }
+  const [detail, setDetail]     = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [reorderLoading, setReorderLoading] = useState(null); // order id being reordered
 
   useEffect(() => {
     clientPortalService.getOrders()
@@ -47,8 +51,56 @@ export default function ClientOrders() {
     }
   };
 
+  const handleReorder = async (order) => {
+    setReorderLoading(order.id);
+    try {
+      // Fetch the order lines
+      const r = await clientPortalService.getOrderById(order.id);
+      const lines = r.data?.lines || [];
+      if (lines.length === 0) {
+        notifyError('No items found in this order');
+        return;
+      }
+
+      // Fetch current product data to get fresh stock & prices
+      const productsRes = await clientPortalService.getProducts({});
+      const productMap = {};
+      (productsRes.data || []).forEach(p => { productMap[p.id] = p; });
+
+      // Build cart entries — only add products still in stock
+      const newCart = {};
+      let skipped = 0;
+      lines.forEach(line => {
+        const product = productMap[line.product_id];
+        if (!product || product.stock <= 0) { skipped++; return; }
+        const qty = Math.min(line.quantity, product.stock);
+        newCart[product.id] = { product, quantity: qty };
+      });
+
+      if (Object.keys(newCart).length === 0) {
+        notifyError('None of the items are currently in stock');
+        return;
+      }
+
+      // Save to localStorage and navigate to portal
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
+      notifySuccess(
+        skipped > 0
+          ? `Cart filled with ${Object.keys(newCart).length} item(s). ${skipped} out-of-stock item(s) skipped.`
+          : `${Object.keys(newCart).length} item(s) added to your cart!`
+      );
+      navigate('/client/portal');
+    } catch {
+      notifyError('Error loading order items. Please try again.');
+    } finally {
+      setReorderLoading(null);
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
+
+      {setupToasterGlobal()}
 
       {/* Top bar */}
       <header style={{
@@ -62,7 +114,7 @@ export default function ClientOrders() {
           onClick={() => navigate('/client/portal')}
           style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6b7280', fontSize: '0.875rem' }}
         >
-          <FiArrowLeft size={16} /> Back to catalog
+          <LuArrowLeft size={16} /> Back to catalog
         </button>
         <div style={{ width: 1, height: 24, background: '#e2e8f0' }} />
         <h1 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>
@@ -126,7 +178,31 @@ export default function ClientOrders() {
                           fontSize: '0.8rem', fontWeight: 600, color: '#374151',
                         }}
                       >
-                        <FiEye size={13} /> Details
+                        <LuEye size={13} /> Details
+                      </button>
+                      <button
+                        onClick={() => handleReorder(order)}
+                        disabled={reorderLoading === order.id}
+                        title="Add all items from this order to your cart"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.35rem',
+                          padding: '0.45rem 0.85rem',
+                          border: 'none',
+                          borderRadius: '8px',
+                          background: reorderLoading === order.id
+                            ? '#e0e7ff'
+                            : 'linear-gradient(135deg,#4f46e5,#7c3aed)',
+                          color: reorderLoading === order.id ? '#4f46e5' : '#fff',
+                          cursor: reorderLoading === order.id ? 'not-allowed' : 'pointer',
+                          fontSize: '0.8rem', fontWeight: 700,
+                          boxShadow: '0 2px 8px rgba(79,70,229,0.2)',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {reorderLoading === order.id
+                          ? <><LuRefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> Loading...</>
+                          : <><LuShoppingCart size={13} /> Reorder</>
+                        }
                       </button>
                     </div>
                   </div>
@@ -265,6 +341,7 @@ export default function ClientOrders() {
           </div>
         </div>
       )}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

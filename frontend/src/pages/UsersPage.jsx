@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { FiPlus, FiEdit2, FiTrash2, FiLock, FiToggleLeft, FiToggleRight } from 'react-icons/fi';
+﻿import React, { useEffect, useState } from 'react';
+import { LuPlus, LuPencil, LuTrash2, LuLock, LuToggleLeft, LuToggleRight } from 'react-icons/lu';
 import { userService, roleService } from '../services/api';
+import { useSortableTable, SortIcon, sortableThStyle } from '../hooks/useSortableTable';
 import '../styles/pages.css';
 
 const EMPTY_USER = { firstname: '', lastname: '', email: '', password: '', role_id: '', status: 'active' };
@@ -38,6 +39,8 @@ export default function UsersPage() {
   const filtered = users.filter(u =>
     `${u.firstname} ${u.lastname} ${u.email}`.toLowerCase().includes(search.toLowerCase())
   );
+
+  const { sorted: sortedUsers, sortKey: uSortKey, sortDir: uSortDir, onSort: onUSort } = useSortableTable(filtered, 'firstname', 'asc');
 
   const openCreate = () => { setForm(EMPTY_USER); setEditing(null); setError(''); setShowModal(true); };
   const openEdit = (u) => { setForm({ firstname: u.firstname, lastname: u.lastname, email: u.email, password: '', role_id: u.role_id, status: u.status }); setEditing(u.id); setError(''); setShowModal(true); };
@@ -101,8 +104,8 @@ export default function UsersPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>👤 Users <span className="count">{users.length}</span></h1>
-        <button className="btn btn-primary" onClick={openCreate}><FiPlus /> New User</button>
+        <h1>Users <span className="count">{users.length}</span></h1>
+        <button className="btn btn-primary" onClick={openCreate}><LuPlus size={14} /> New User</button>
       </div>
 
       {success && <div className="alert alert-success">✅ {success}</div>}
@@ -115,12 +118,20 @@ export default function UsersPage() {
       <div className="table-wrap">
         <table className="data-table">
           <thead>
-            <tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr>
+            <tr>
+              <th style={sortableThStyle} onClick={() => onUSort('id')}>#<SortIcon col="id" sortKey={uSortKey} sortDir={uSortDir} /></th>
+              <th style={sortableThStyle} onClick={() => onUSort('firstname')}>Name<SortIcon col="firstname" sortKey={uSortKey} sortDir={uSortDir} /></th>
+              <th style={sortableThStyle} onClick={() => onUSort('email')}>Email<SortIcon col="email" sortKey={uSortKey} sortDir={uSortDir} /></th>
+              <th style={sortableThStyle} onClick={() => onUSort('role_name')}>Role<SortIcon col="role_name" sortKey={uSortKey} sortDir={uSortDir} /></th>
+              <th style={sortableThStyle} onClick={() => onUSort('status')}>Status<SortIcon col="status" sortKey={uSortKey} sortDir={uSortDir} /></th>
+              <th style={sortableThStyle} onClick={() => onUSort('last_login')}>Last Login<SortIcon col="last_login" sortKey={uSortKey} sortDir={uSortDir} /></th>
+              <th>Actions</th>
+            </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {sortedUsers.length === 0 ? (
               <tr><td colSpan={7}><div className="empty-state"><p>No users found</p></div></td></tr>
-            ) : filtered.map(u => (
+            ) : sortedUsers.map(u => (
               <tr key={u.id}>
                 <td>{u.id}</td>
                 <td><strong>{u.firstname} {u.lastname}</strong></td>
@@ -132,12 +143,12 @@ export default function UsersPage() {
                 </td>
                 <td>
                   <div className="actions">
-                    <button className="btn btn-warning btn-icon" title="Edit" onClick={() => openEdit(u)}><FiEdit2 size={14} /></button>
-                    <button className="btn btn-ghost btn-icon" title="Reset password" onClick={() => { setShowPwdModal(u.id); setError(''); }}><FiLock size={14} /></button>
+                    <button className="btn btn-warning btn-icon" title="Edit" onClick={() => openEdit(u)}><LuPencil size={14} /></button>
+                    <button className="btn btn-ghost btn-icon" title="Reset password" onClick={() => { setShowPwdModal(u.id); setError(''); }}><LuLock size={14} /></button>
                     <button className={`btn btn-icon ${u.status === 'active' ? 'btn-success' : 'btn-ghost'}`} title={u.status === 'active' ? 'Deactivate' : 'Activate'} onClick={() => handleToggle(u)}>
-                      {u.status === 'active' ? <FiToggleRight size={16} /> : <FiToggleLeft size={16} />}
+                      {u.status === 'active' ? <LuToggleRight size={16} /> : <LuToggleLeft size={16} />}
                     </button>
-                    <button className="btn btn-danger btn-icon" title="Delete" onClick={() => handleDelete(u.id, `${u.firstname} ${u.lastname}`)}><FiTrash2 size={14} /></button>
+                    <button className="btn btn-danger btn-icon" title="Delete" onClick={() => handleDelete(u.id, `${u.firstname} ${u.lastname}`)}><LuTrash2 size={14} /></button>
                   </div>
                 </td>
               </tr>

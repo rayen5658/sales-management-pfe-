@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Images Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 2rem;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: white;
+      text-align: center;
+      margin-bottom: 1rem;
+      font-size: 2.5rem;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    .subtitle {
+      color: rgba(255,255,255,0.9);
+      text-align: center;
+      margin-bottom: 2rem;
+      font-size: 1.1rem;
+    }
+    .stats {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      text-align: center;
+      color: white;
+    }
+    .stat-number {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    .stat-label {
+      font-size: 0.85rem;
+      opacity: 0.8;
+      margin-top: 0.25rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 1.25rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+    }
+    .image-container {
+      width: 100%;
+      height: 180px;
+      background: #f8fafc;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      border: 2px solid #e2e8f0;
+      overflow: hidden;
+      position: relative;
+    }
+    .image-container img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .status-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-photo {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
+    .badge-placeholder {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: white;
+    }
+    .badge-error {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+    }
+    .product-name {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #1e293b;
+      margin-bottom: 0.5rem;
+    }
+    .product-ref {
+      font-size: 0.8rem;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      display: inline-block;
+      font-family: 'Courier New', monospace;
+    }
+    .product-path {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 0.5rem;
+      word-break: break-all;
+    }
+    .error-text {
+      color: #ef4444;
+      font-size: 2rem;
+    }
+    footer {
+      text-align: center;
+      color: rgba(255,255,255,0.8);
+      padding: 2rem 0;
+      font-size: 0.9rem;
+    }
+    .legend {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: white;
+      font-size: 0.9rem;
+    }
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🖼️ Product Images Preview</h1>
+    <p class="subtitle">Visual verification of all product images in the catalog</p>
+    
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-number" id="total-count">0</div>
+        <div class="stat-label">Total Products</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="photo-count">0</div>
+        <div class="stat-label">Real Photos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="placeholder-count">0</div>
+        <div class="stat-label">Placeholders</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="error-count">0</div>
+        <div class="stat-label">Errors</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background: linear-gradient(135deg, #10b981, #059669);"></div>
+        <span>Real Photo (JPG)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: linear-gradient(135deg, #f59e0b, #d97706);"></div>
+        <span>SVG Placeholder</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: linear-gradient(135deg, #ef4444, #dc2626);"></div>
+        <span>Failed to Load</span>
+      </div>
+    </div>
+
+    <div class="grid" id="image-grid"></div>
+
+    <footer>
+      <p>💡 Tip: Real photos can be added by downloading images to <code>frontend/public/products/</code></p>
+      <p style="margin-top: 0.5rem; font-size: 0.85rem;">Files must be named exactly as the reference code (e.g., LAP-DELL-5530.jpg)</p>
+    </footer>
+  </div>
+
+  <script>
+    const products = [
+      { ref: 'PHN-XIAO-12T', name: 'Xiaomi 12T Pro', path: '/products/PHN-XIAO-12T.jpg' },
+      { ref: 'MSE-LOG-MX3', name: 'Logitech MX Master 3S', path: '/products/MSE-LOG-MX3.jpg' },
+      { ref: 'SSD-SAM-870EVO', name: 'Samsung 870 EVO SSD', path: '/products/SSD-SAM-870EVO.jpg' },
+      { ref: 'TAB-SAM-A8', name: 'Samsung Galaxy Tab A8', path: '/products/TAB-SAM-A8.jpg' },
+      { ref: 'LAP-DELL-5530', name: 'Dell Latitude 5530', path: '/products/LAP-DELL-5530.svg' },
+      { ref: 'LAP-HP-840G9', name: 'HP EliteBook 840 G9', path: '/products/LAP-HP-840G9.svg' },
+      { ref: 'PC-LENOVO-M70Q', name: 'Lenovo ThinkCentre M70q', path: '/products/PC-LENOVO-M70Q.svg' },
+      { ref: 'LAP-ASUS-B1500', name: 'ASUS ExpertBook B1500', path: '/products/LAP-ASUS-B1500.svg' },
+      { ref: 'PHN-SAM-A54', name: 'Samsung Galaxy A54 5G', path: '/products/PHN-SAM-A54.svg' },
+      { ref: 'NET-TP-AX73', name: 'TP-Link Archer AX73', path: '/products/NET-TP-AX73.svg' },
+      { ref: 'NET-CISCO-SG110', name: 'Cisco SG110-16 Switch', path: '/products/NET-CISCO-SG110.svg' },
+      { ref: 'NET-UBNT-AP6', name: 'Ubiquiti UniFi AP U6 Lite', path: '/products/NET-UBNT-AP6.svg' },
+      { ref: 'MON-DELL-P2422H', name: 'Dell P2422H Monitor', path: '/products/MON-DELL-P2422H.svg' },
+      { ref: 'KBD-LOG-MX', name: 'Logitech MX Keys', path: '/products/KBD-LOG-MX.svg' },
+      { ref: 'SSD-WD-SN770', name: 'WD Black SN770 NVMe SSD', path: '/products/SSD-WD-SN770.svg' },
+      { ref: 'RAM-KING-DDR4', name: 'Kingston DDR4 16GB RAM', path: '/products/RAM-KING-DDR4.svg' },
+      { ref: 'PRN-HP-M404DN', name: 'HP LaserJet Pro M404dn', path: '/products/PRN-HP-M404DN.svg' },
+      { ref: 'PRN-EPSON-L3250', name: 'Epson EcoTank L3250', path: '/products/PRN-EPSON-L3250.svg' },
+      { ref: 'CAM-HIKVISION-2CD', name: 'Hikvision IP Camera 4MP', path: '/products/CAM-HIKVISION-2CD.svg' },
+      { ref: 'NVR-HIKVISION-8CH', name: 'Hikvision 8CH NVR', path: '/products/NVR-HIKVISION-8CH.svg' }
+    ];
+
+    const grid = document.getElementById('image-grid');
+    let photoCount = 0;
+    let placeholderCount = 0;
+    let errorCount = 0;
+
+    products.forEach(product => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      
+      const isPhoto = product.path.endsWith('.jpg');
+      if (isPhoto) photoCount++;
+      else placeholderCount++;
+      
+      card.innerHTML = `
+        <div class="image-container">
+          <img 
+            src="${product.path}" 
+            alt="${product.name}"
+            onerror="this.style.display='none'; this.nextSibling.style.display='flex'; this.closest('.image-container').querySelector('.status-badge').className='status-badge badge-error'; this.closest('.image-container').querySelector('.status-badge').textContent='ERROR';"
+          >
+          <div class="error-text" style="display: none;">❌</div>
+          <span class="status-badge ${isPhoto ? 'badge-photo' : 'badge-placeholder'}">
+            ${isPhoto ? '📸 PHOTO' : '🎨 SVG'}
+          </span>
+        </div>
+        <div class="product-name">${product.name}</div>
+        <code class="product-ref">${product.ref}</code>
+        <div class="product-path">${product.path}</div>
+      `;
+      
+      grid.appendChild(card);
+    });
+
+    // Update stats
+    document.getElementById('total-count').textContent = products.length;
+    document.getElementById('photo-count').textContent = photoCount;
+    document.getElementById('placeholder-count').textContent = placeholderCount;
+    document.getElementById('error-count').textContent = errorCount;
+
+    // Listen for image errors to update error count
+    document.querySelectorAll('.image-container img').forEach(img => {
+      img.addEventListener('error', () => {
+        errorCount++;
+        document.getElementById('error-count').textContent = errorCount;
+      });
+    });
+  </script>
+</body>
+</html>

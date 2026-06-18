@@ -10,7 +10,10 @@ const pool = new Pool({
 });
 
 pool.connect()
-  .then(() => console.log('✅ PostgreSQL connected'))
+  .then(client => {
+    console.log('✅ PostgreSQL connected');
+    client.release(); // release back to pool — prevents client leak
+  })
   .catch(err => console.error('❌ DB connection error:', err));
 
 module.exports = pool;

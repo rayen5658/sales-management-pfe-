@@ -1,13 +1,17 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dashboardService, userService, orderService } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { applyPlugin } from 'jspdf-autotable';
+
+// Apply autoTable plugin to jsPDF
+applyPlugin(jsPDF);
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  Tooltip, ResponsiveContainer, Cell, ReferenceLine, Legend,
 } from 'recharts';
+import { LuTrendingUp, LuShoppingCart, LuUsers, LuPackage } from 'react-icons/lu';
 import TunisiaMap from '../components/dashboard/TunisiaMap';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import '../styles/pages.css';
@@ -26,7 +30,7 @@ function exportTopProductsPDF(topProds, period) {
   doc.setFontSize(9); doc.setFont('helvetica', 'normal');
   doc.text(`Period: ${period} | Generated on ${new Date().toLocaleDateString('en-GB')}`, 14, 21);
 
-  autoTable(doc, {
+  doc.autoTable({
     startY: 35,
     head: [['#', 'Product', 'Qty Sold', 'Revenue (TND)']],
     body: topProds.map((p, i) => [
@@ -77,11 +81,32 @@ const PERIODS = [
 
 const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
 
+// Custom tooltip for revenue chart
+const RevenueTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.75rem 1rem', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: '0.8rem', minWidth: 160 }}>
+      <p style={{ fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem' }}>{label}</p>
+      {payload.map((entry, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.2rem' }}>
+          <span style={{ color: entry.color, fontWeight: 600 }}>
+            {entry.name === 'revenue' ? '● This year' : '● Prev. year'}
+          </span>
+          <span style={{ fontWeight: 700, color: '#1e293b' }}>
+            {new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 0 }).format(Math.round(entry.value || 0))} TND
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const isAdminOrManager = user?.role_name === 'Administrator' || user?.role_name === 'Manager';
   const [period, setPeriod]       = useState('year');
+  const [chartType, setChartType] = useState('bar'); // 'bar' | 'area'
   const [selectedUser, setSelectedUser] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('');
   const [users, setUsers]         = useState([]);
@@ -115,9 +140,12 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    userService.getAll().then(r => {
-      setUsers(r.data);
-    }).catch(() => {});
+    // Only admins and managers can filter by sales rep — Sales Agents don't need this list
+    if (isAdminOrManager) {
+      userService.getAll().then(r => {
+        setUsers(r.data);
+      }).catch(() => {});
+    }
     dashboardService.getByRegion().then(r => {
       setRegions(r.data.map(x => x.region));
     }).catch(() => {});
@@ -199,13 +227,15 @@ export default function Dashboard() {
       {/* ── KPI Cards ── */}
       <div className="kpi-grid">
         {[
-          { label: "Revenue", value: fmt(kpis.totalRevenue), sub: variation !== null ? `${variationIcon} ${Math.abs(variationNum)}% vs prev. period` : '', subColor: variationColor, icon: '💰', bg: 'linear-gradient(135deg,#fdf4ff,#fae8ff)', border: '#e9d5ff', iconBg: 'linear-gradient(135deg,#a855f7,#7c3aed)', shadow: 'rgba(168,85,247,0.35)', color: '#7c3aed' },
-          { label: 'Orders', value: kpis.totalOrders || 0, sub: `Avg basket: ${kpis.totalOrders > 0 ? fmt(kpis.totalRevenue / kpis.totalOrders) : '—'}`, icon: '🛒', bg: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '#bfdbfe', iconBg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', shadow: 'rgba(59,130,246,0.35)', color: '#2563eb' },
-          { label: 'Active Clients', value: kpis.activeClients || 0, sub: 'Active status in database', icon: '👥', bg: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '#bbf7d0', iconBg: 'linear-gradient(135deg,#22c55e,#15803d)', shadow: 'rgba(34,197,94,0.35)', color: '#16a34a' },
-          { label: 'Products', value: kpis.totalProducts || 0, sub: kpis.lowStockProducts > 0 ? `⚠ ${kpis.lowStockProducts} out of stock` : 'Stock OK ✅', subColor: kpis.lowStockProducts > 0 ? '#ef4444' : undefined, icon: '📦', bg: 'linear-gradient(135deg,#fff7ed,#ffedd5)', border: '#fed7aa', iconBg: 'linear-gradient(135deg,#f97316,#c2410c)', shadow: 'rgba(249,115,22,0.35)', color: '#ea580c' },
+          { label: "Revenue",        value: fmt(kpis.totalRevenue), sub: variation !== null ? `${variationIcon} ${Math.abs(variationNum)}% vs prev. period` : '', subColor: variationColor, Icon: LuTrendingUp,    bg: 'linear-gradient(135deg,#fdf4ff,#fae8ff)', border: '#e9d5ff', iconBg: 'linear-gradient(135deg,#a855f7,#7c3aed)', shadow: 'rgba(168,85,247,0.35)', color: '#7c3aed' },
+          { label: 'Orders',         value: kpis.totalOrders || 0, sub: `Avg basket: ${kpis.totalOrders > 0 ? fmt(kpis.totalRevenue / kpis.totalOrders) : '—'}`, Icon: LuShoppingCart, bg: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '#bfdbfe', iconBg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', shadow: 'rgba(59,130,246,0.35)', color: '#2563eb' },
+          { label: 'Active Clients', value: kpis.activeClients || 0, sub: 'Active status in database', Icon: LuUsers,        bg: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '#bbf7d0', iconBg: 'linear-gradient(135deg,#22c55e,#15803d)', shadow: 'rgba(34,197,94,0.35)', color: '#16a34a' },
+          { label: 'Products',       value: kpis.totalProducts || 0, sub: kpis.lowStockProducts > 0 ? `${kpis.lowStockProducts} low stock` : 'Stock OK', subColor: kpis.lowStockProducts > 0 ? '#ef4444' : undefined, Icon: LuPackage, bg: 'linear-gradient(135deg,#fff7ed,#ffedd5)', border: '#fed7aa', iconBg: 'linear-gradient(135deg,#f97316,#c2410c)', shadow: 'rgba(249,115,22,0.35)', color: '#ea580c' },
         ].map((k, i) => (
           <div key={i} className="kpi-card" style={{ background: k.bg, borderColor: k.border }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: k.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0, boxShadow: `0 8px 20px ${k.shadow}` }}>{k.icon}</div>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: k.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 8px 20px ${k.shadow}`, color: '#fff' }}>
+              <k.Icon size={26} strokeWidth={2} />
+            </div>
             <div>
               <p className="kpi-label">{k.label}</p>
               <p className="kpi-value" style={{ color: k.color, fontSize: '1.5rem' }}>{k.value}</p>
@@ -294,27 +324,102 @@ export default function Dashboard() {
         <div className="card chart-card" style={{ borderTop: '3px solid #6366f1' }}>
           <div className="chart-header">
             <h2>Monthly Revenue</h2>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <span className="legend-dot" style={{ background: '#4f46e5' }} /><span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>N</span>
-              <span className="legend-dot" style={{ background: '#10b981' }} /><span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>N-1</span>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Chart type toggle */}
+              <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '8px', padding: '2px', gap: '2px' }}>
+                {[{ key: 'bar', icon: '▊', label: 'Bar' }, { key: 'area', icon: '∿', label: 'Area' }].map(t => (
+                  <button key={t.key} onClick={() => setChartType(t.key)}
+                    style={{
+                      padding: '0.2rem 0.6rem', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                      background: chartType === t.key ? '#fff' : 'transparent',
+                      color: chartType === t.key ? '#4f46e5' : '#94a3b8',
+                      fontWeight: chartType === t.key ? 700 : 400,
+                      fontSize: '0.75rem',
+                      boxShadow: chartType === t.key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                      transition: 'all 0.15s',
+                    }}
+                  >{t.icon} {t.label}</button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                <span className="legend-dot" style={{ background: '#4f46e5' }} /><span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>This year</span>
+                <span className="legend-dot" style={{ background: '#10b981' }} /><span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Prev. year</span>
+              </div>
               <span className="chart-badge">Current year</span>
             </div>
           </div>
-          {monthly.length === 0 ? <div className="empty-state" style={{ padding: '2rem' }}><p>No data</p></div> : (
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gN" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15} /><stop offset="95%" stopColor="#4f46e5" stopOpacity={0} /></linearGradient>
-                  <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.1} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} /></linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
-                <Tooltip formatter={(v, name) => [fmt(v), name === 'revenue' ? 'Revenue (N)' : 'Revenue (N-1)']} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} />
-                <Area type="monotone" dataKey="revenue_prev" stroke="#10b981" strokeWidth={1.5} strokeDasharray="4 4" fill="url(#gP)" dot={false} />
-                <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2.5} fill="url(#gN)" dot={{ fill: '#4f46e5', r: 3 }} activeDot={{ r: 5 }} />
-              </AreaChart>
-            </ResponsiveContainer>
+
+          {monthly.length === 0 ? (
+            <div className="empty-state" style={{ padding: '2rem' }}><p>No data</p></div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={260}>
+                {chartType === 'bar' ? (
+                  <BarChart data={monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} barGap={4} barCategoryGap="25%">
+                    <defs>
+                      <linearGradient id="barGradN" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#4f46e5" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.8} />
+                      </linearGradient>
+                      <linearGradient id="barGradP" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.7} />
+                        <stop offset="100%" stopColor="#059669" stopOpacity={0.4} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false}
+                      tickFormatter={v => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
+                    <Tooltip content={<RevenueTooltip />} cursor={{ fill: 'rgba(79,70,229,0.04)', radius: 6 }} />
+                    <Bar dataKey="revenue_prev" name="revenue_prev" fill="url(#barGradP)" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                    <Bar dataKey="revenue" name="revenue" radius={[4, 4, 0, 0]} maxBarSize={32}>
+                      {monthly.map((entry, index) => {
+                        const isMax = entry.revenue === Math.max(...monthly.map(m => m.revenue || 0));
+                        return <Cell key={index} fill={isMax ? '#4f46e5' : 'url(#barGradN)'} opacity={isMax ? 1 : 0.75} />;
+                      })}
+                    </Bar>
+                  </BarChart>
+                ) : (
+                  <AreaChart data={monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gN" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2} /><stop offset="95%" stopColor="#4f46e5" stopOpacity={0} /></linearGradient>
+                      <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.15} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} /></linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false}
+                      tickFormatter={v => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
+                    <Tooltip content={<RevenueTooltip />} />
+                    <Area type="monotone" dataKey="revenue_prev" name="revenue_prev" stroke="#10b981" strokeWidth={1.5} strokeDasharray="4 4" fill="url(#gP)" dot={false} />
+                    <Area type="monotone" dataKey="revenue" name="revenue" stroke="#4f46e5" strokeWidth={2.5} fill="url(#gN)" dot={{ fill: '#4f46e5', r: 3 }} activeDot={{ r: 5 }} />
+                  </AreaChart>
+                )}
+              </ResponsiveContainer>
+
+              {/* Monthly summary row — best/worst/total */}
+              {(() => {
+                const validMonths = monthly.filter(m => m.revenue > 0);
+                if (validMonths.length === 0) return null;
+                const best  = validMonths.reduce((a, b) => a.revenue > b.revenue ? a : b);
+                const worst = validMonths.reduce((a, b) => a.revenue < b.revenue ? a : b);
+                const total = validMonths.reduce((s, m) => s + (m.revenue || 0), 0);
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.5rem', marginTop: '0.85rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.85rem' }}>
+                    {[
+                      { label: 'Best month',   value: best.month,  sub: `${new Intl.NumberFormat('fr-TN',{minimumFractionDigits:0}).format(Math.round(best.revenue))} TND`, color: '#4f46e5', bg: '#f5f3ff' },
+                      { label: 'Lowest month', value: worst.month, sub: `${new Intl.NumberFormat('fr-TN',{minimumFractionDigits:0}).format(Math.round(worst.revenue))} TND`, color: '#f59e0b', bg: '#fffbeb' },
+                      { label: 'Total YTD',    value: `${new Intl.NumberFormat('fr-TN',{minimumFractionDigits:0}).format(Math.round(total))} TND`, sub: `${validMonths.length} months`, color: '#10b981', bg: '#f0fdf4' },
+                    ].map((item, i) => (
+                      <div key={i} style={{ background: item.bg, borderRadius: '8px', padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                        <p style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, marginBottom: '0.15rem' }}>{item.label}</p>
+                        <p style={{ fontSize: '0.88rem', fontWeight: 800, color: item.color }}>{item.value}</p>
+                        <p style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{item.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </>
           )}
         </div>
 

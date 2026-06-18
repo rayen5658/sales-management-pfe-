@@ -88,6 +88,7 @@ export const orderService = {
   update:          (id, data)     => api.put(`/orders/${id}`, data),
   cancel:          (id, reason)   => api.put(`/orders/${id}/cancel`, { cancel_reason: reason }),
   updateStatus:    (id, status)   => api.put(`/orders/${id}/status`, { status }),
+  ship:            (id, data)     => api.post(`/orders/${id}/ship`, data),
 };
 
 export const userService = {

@@ -2,6 +2,19 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useClientAuthStore } from '../stores/clientAuthStore';
+import AppLogo from '../components/common/AppLogo';
+
+// ── SVG Icon set — replaces emoji throughout Login ────────────────────────────
+function IconChart()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>; }
+function IconPackage()  { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>; }
+function IconUsers()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>; }
+function IconLock()     { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>; }
+function IconShop()     { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>; }
+function IconCart()     { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 001.99 1.61h9.72a2 2 0 001.99-1.61L23 6H6"/></svg>; }
+function IconTracking() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>; }
+function IconHistory()  { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>; }
+function IconShield()   { return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>; }
+function IconBuilding() { return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 22V12h6v10"/><path d="M9 7h1"/><path d="M14 7h1"/><path d="M9 12h1"/><path d="M14 12h1"/></svg>; }
 
 // ── Eye icon ──────────────────────────────────────────────────────────────────
 function EyeIcon({ open }) {
@@ -70,17 +83,17 @@ function BrandPanel({ role }) {
   const isClient = role === 'client';
 
   const adminFeatures = [
-    { icon: '📊', title: 'Real-time Dashboard',  desc: 'KPIs, revenue trends and regional sales at a glance', tooltip: 'View total revenue, top products, top clients and sales by region — all updated live.' },
-    { icon: '📦', title: 'Order Management',      desc: 'Create, track and update orders with full status history', tooltip: 'Create orders, update their status (pending → confirmed → shipped → delivered), cancel with reason and view full history.' },
-    { icon: '👥', title: 'Client Management',     desc: 'Manage your client portfolio with archive and restore', tooltip: 'Add clients, edit their info, view order history, enable portal access and archive/restore as needed.' },
-    { icon: '🔒', title: 'Role-based Access',     desc: 'Administrator, Manager and Sales Agent permissions', tooltip: 'Each role has specific permissions. Admins manage users and audit logs. Managers handle orders and clients. Sales Agents create orders.' },
+    { icon: <IconChart />,    title: 'Real-time Dashboard',  desc: 'KPIs, revenue trends and regional sales at a glance', tooltip: 'View total revenue, top products, top clients and sales by region — all updated live.' },
+    { icon: <IconPackage />,  title: 'Order Management',     desc: 'Create, track and update orders with full status history', tooltip: 'Create orders, update their status (pending → confirmed → shipped → delivered), cancel with reason and view full history.' },
+    { icon: <IconUsers />,    title: 'Client Management',    desc: 'Manage your client portfolio with archive and restore', tooltip: 'Add clients, edit their info, view order history, enable portal access and archive/restore as needed.' },
+    { icon: <IconLock />,     title: 'Role-based Access',    desc: 'Administrator, Manager and Sales Agent permissions', tooltip: 'Each role has specific permissions. Admins manage users and audit logs. Managers handle orders and clients. Sales Agents create orders.' },
   ];
 
   const clientFeatures = [
-    { icon: '🛍️', title: 'Browse Products',       desc: 'Search and filter the full product catalog', tooltip: 'Search by name or reference, filter by category, and see real-time stock availability.' },
-    { icon: '🛒', title: 'Place Orders',           desc: 'Add to cart, review summary and confirm your order', tooltip: 'Add products to your cart, adjust quantities, add notes and review the full order summary before confirming.' },
-    { icon: '📋', title: 'Track Your Orders',      desc: 'Follow status from pending to delivered in real time', tooltip: 'See exactly where your order is: pending, confirmed, shipped or delivered — with timestamps.' },
-    { icon: '📁', title: 'Order History',          desc: 'View all your past orders and their details', tooltip: 'Access your complete order history with amounts, dates, status and line-by-line product details.' },
+    { icon: <IconShop />,     title: 'Browse Products',      desc: 'Search and filter the full product catalog', tooltip: 'Search by name or reference, filter by category, and see real-time stock availability.' },
+    { icon: <IconCart />,     title: 'Place Orders',         desc: 'Add to cart, review summary and confirm your order', tooltip: 'Add products to your cart, adjust quantities, add notes and review the full order summary before confirming.' },
+    { icon: <IconTracking />, title: 'Track Your Orders',    desc: 'Follow status from pending to delivered in real time', tooltip: 'See exactly where your order is: pending, confirmed, shipped or delivered — with timestamps.' },
+    { icon: <IconHistory />,  title: 'Order History',        desc: 'View all your past orders and their details', tooltip: 'Access your complete order history with amounts, dates, status and line-by-line product details.' },
   ];
 
   const features = isClient ? clientFeatures : adminFeatures;
@@ -110,17 +123,8 @@ function BrandPanel({ role }) {
       <div style={{ position: 'relative', zIndex: 1 }}>
 
         {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: '12px',
-            background: 'rgba(255,255,255,0.15)',
-            border: '1px solid rgba(255,255,255,0.22)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem',
-          }}>📈</div>
-          <div>
-            <div style={{ fontWeight: 800, color: '#fff', fontSize: '1rem', letterSpacing: '-0.01em' }}>Sales Management</div>
-            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', marginTop: '1px' }}>Professional Dashboard</div>
-          </div>
+        <div style={{ marginBottom: '2rem' }}>
+          <AppLogo size={48} showText={true} inverted={true} />
         </div>
 
         {/* Headline */}
@@ -180,7 +184,7 @@ function BrandPanel({ role }) {
                 background: 'rgba(255,255,255,0.11)',
                 border: '1px solid rgba(255,255,255,0.16)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '0.95rem',
+                color: 'rgba(255,255,255,0.9)',
               }}>{f.icon}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.83rem' }}>{f.title}</div>
@@ -244,8 +248,8 @@ function RoleSelector({ onSelect }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
         {[
-          { role: 'admin',  icon: '🛡️', title: 'Admin / Staff',  sub: 'Administrators, managers and sales agents', grad: 'linear-gradient(135deg,#4f46e5,#3730a3)' },
-          { role: 'client', icon: '🏢', title: 'Client Portal',   sub: 'Place and track your orders',              grad: 'linear-gradient(135deg,#7c3aed,#4f46e5)' },
+          { role: 'admin',  icon: <IconShield />,   title: 'Admin / Staff',  sub: 'Administrators, managers and sales agents', grad: 'linear-gradient(135deg,#4f46e5,#3730a3)' },
+          { role: 'client', icon: <IconBuilding />,  title: 'Client Portal',  sub: 'Place and track your orders',              grad: 'linear-gradient(135deg,#7c3aed,#4f46e5)' },
         ].map(({ role, icon, title, sub, grad }) => (
           <button
             key={role}
@@ -260,7 +264,7 @@ function RoleSelector({ onSelect }) {
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#4f46e5'; e.currentTarget.style.background = '#f5f3ff'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(79,70,229,0.12)'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#fff'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
           >
-            <div style={{ width: 44, height: 44, borderRadius: '12px', flexShrink: 0, background: grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+            <div style={{ width: 44, height: 44, borderRadius: '12px', flexShrink: 0, background: grad, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
               {icon}
             </div>
             <div style={{ flex: 1 }}>
@@ -318,7 +322,9 @@ function AdminLoginForm({ onBack }) {
       </button>
 
       <div style={{ marginBottom: '2rem' }}>
-        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#4f46e5,#3730a3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(79,70,229,0.3)' }}>🛡️</div>
+        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#4f46e5,#3730a3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(79,70,229,0.3)' }}>
+          <IconShield />
+        </div>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: '#111827', margin: '0 0 0.4rem', letterSpacing: '-0.02em' }}>Admin / Staff</h1>
         <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: 0 }}>Enter your credentials to access the dashboard</p>
       </div>
@@ -385,7 +391,9 @@ function ClientLoginForm({ onBack }) {
       </button>
 
       <div style={{ marginBottom: '2rem' }}>
-        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(124,58,237,0.3)' }}>🏢</div>
+        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(124,58,237,0.3)' }}>
+          <IconBuilding />
+        </div>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: '#111827', margin: '0 0 0.4rem', letterSpacing: '-0.02em' }}>Client Portal</h1>
         <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: 0 }}>Sign in to place and track your orders</p>
       </div>

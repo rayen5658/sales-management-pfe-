@@ -54,13 +54,6 @@
 }
 
 .welcome-brand{display:flex; align-items:center; gap:0.9rem;}
-.welcome-logo{
-  width:44px; height:44px; border-radius:14px;
-  background: linear-gradient(135deg, #4f46e5, #10b981);
-  display:flex; align-items:center; justify-content:center;
-  box-shadow: 0 8px 24px rgba(79,70,229,0.25);
-  font-size:1.25rem;
-}
 .welcome-brand-name{font-weight:900; letter-spacing:-0.02em; color:#1e1b4b;}
 .welcome-brand-sub{font-size:0.82rem; color:#6b7280; margin-top:2px;}
 

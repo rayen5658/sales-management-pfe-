@@ -62,13 +62,9 @@ export default function ChatBot() {
         throw new Error(data.error || 'Unknown error occurred');
       }
     } catch (err) {
-      const errorMsg = err.message || 'Failed to get response from AI. Please try again.';
+      const errorMsg = err.message || 'Failed to get response. Please try again.';
       setError(errorMsg);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: `❌ Error: ${errorMsg}` 
-      }]);
-      console.error('Chat error:', err);
+      // Don't add error to messages — it already shows in the error banner below the chat
     } finally {
       setLoading(false);
     }
@@ -92,7 +88,11 @@ export default function ChatBot() {
         title="Open AI Assistant"
         aria-label="Open chat"
       >
-        💬
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          <line x1="8" y1="10" x2="16" y2="10"/>
+          <line x1="8" y1="14" x2="12" y2="14"/>
+        </svg>
       </button>
     );
   }
@@ -101,7 +101,13 @@ export default function ChatBot() {
     <div className="chatbot-container">
       <div className="chatbot-header">
         <div className="chatbot-title-area">
-          <h3>🤖 AI Assistant</h3>
+          <h3>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display:'inline', verticalAlign:'middle', marginRight:'0.4rem' }}>
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M12 2v4"/><circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/>
+              <path d="M7 11V8a5 5 0 0 1 10 0v3"/><line x1="8" y1="15" x2="8" y2="17"/><line x1="16" y1="15" x2="16" y2="17"/>
+            </svg>
+            AI Assistant
+          </h3>
           <span className="chatbot-status">Ready to help</span>
         </div>
         <div className="chatbot-controls">
@@ -127,13 +133,13 @@ export default function ChatBot() {
       <div className="chatbot-messages">
         {messages.length === 0 && (
           <div className="chatbot-welcome">
-            <p>👋 Hello! I'm your AI assistant.</p>
+            <p style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b' }}>Hello! I'm your AI assistant.</p>
             <p>Ask me anything about:</p>
             <ul>
-              <li>📦 Products and inventory</li>
-              <li>👥 Clients and accounts</li>
-              <li>📋 Orders and sales</li>
-              <li>📊 Analytics and reports</li>
+              <li>Products &amp; inventory</li>
+              <li>Clients &amp; accounts</li>
+              <li>Orders &amp; sales</li>
+              <li>Analytics &amp; reports</li>
             </ul>
           </div>
         )}
@@ -174,7 +180,7 @@ export default function ChatBot() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder="Type your question here..."
             disabled={loading}
             aria-label="Chat message input"

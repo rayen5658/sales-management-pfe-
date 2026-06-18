@@ -179,7 +179,10 @@
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
   animation: slideUp 0.2s ease;
+  display: flex;
+  flex-direction: column;
 }
+
 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .modal-header {
   display: flex;
@@ -194,10 +197,11 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  margin-top: 1.5rem;
+  margin-top: auto;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
 }
+
 
 /* ===== FORM ===== */
 .form-group {

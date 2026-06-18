@@ -59,13 +59,13 @@ export default function App() {
           <Route path="/login"   element={<Login />} />
 
           {/* Protected routes */}
-          <Route path="/dashboard"  element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
-          <Route path="/products"   element={<ProtectedRoute><AppLayout><ProductsPage /></AppLayout></ProtectedRoute>} />
-          <Route path="/categories" element={<ProtectedRoute><AppLayout><CategoriesPage /></AppLayout></ProtectedRoute>} />
-          <Route path="/clients"    element={<ProtectedRoute><AppLayout><ClientsPage /></AppLayout></ProtectedRoute>} />
-          <Route path="/orders"     element={<ProtectedRoute><AppLayout><OrdersPage /></AppLayout></ProtectedRoute>} />
-          <Route path="/users"      element={<ProtectedRoute requiredRole="Administrator"><AppLayout><UsersPage /></AppLayout></ProtectedRoute>} />
-          <Route path="/audit-logs" element={<ProtectedRoute requiredRole="Administrator"><AppLayout><AuditLogsPage /></AppLayout></ProtectedRoute>} />
+          <Route path="/dashboard"  element={<ProtectedRoute><AppLayout><ErrorBoundary><Dashboard /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/products"   element={<ProtectedRoute><AppLayout><ErrorBoundary><ProductsPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/categories" element={<ProtectedRoute><AppLayout><ErrorBoundary><CategoriesPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/clients"    element={<ProtectedRoute><AppLayout><ErrorBoundary><ClientsPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/orders"     element={<ProtectedRoute><AppLayout><ErrorBoundary><OrdersPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/users"      element={<ProtectedRoute requiredRole="Administrator"><AppLayout><ErrorBoundary><UsersPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/audit-logs" element={<ProtectedRoute requiredRole="Administrator"><AppLayout><ErrorBoundary><AuditLogsPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
 
           {/* Client portal */}
           <Route path="/client/login"  element={<ClientLogin />} />
