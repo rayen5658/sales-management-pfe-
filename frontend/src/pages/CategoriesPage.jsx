@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { LuPlus, LuPencil, LuTrash2 } from 'react-icons/lu';
 import { useDataStore } from '../stores/dataStore';
+import { useAuthStore } from '../stores/authStore';
 import { useSortableTable, SortIcon, sortableThStyle } from '../hooks/useSortableTable';
 import '../styles/pages.css';
 
@@ -8,6 +9,8 @@ const EMPTY = { name: '', description: '', image: '', parent_id: '' };
 
 export default function CategoriesPage() {
   const { categories, fetchCategories, categoriesLoading, createCategory, updateCategory, deleteCategory } = useDataStore();
+  const { user } = useAuthStore();
+  const canWrite = user?.role_name === 'Administrator' || user?.role_name === 'Manager';
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -50,7 +53,7 @@ export default function CategoriesPage() {
     <div className="page">
       <div className="page-header">
         <h1>Categories <span className="count">{categories.length}</span></h1>
-        <button className="btn btn-primary" onClick={openCreate}><LuPlus size={14} /> New Category</button>
+        {canWrite && <button className="btn btn-primary" onClick={openCreate}><LuPlus size={14} /> New Category</button>}
       </div>
 
       {success && <div className="alert alert-success">✅ {success}</div>}
@@ -89,8 +92,9 @@ export default function CategoriesPage() {
                   </td>
                   <td>
                     <div className="actions">
-                      <button className="btn btn-warning btn-icon" title="Edit" onClick={() => openEdit(c)}><LuPencil size={14} /></button>
-                      <button className="btn btn-danger btn-icon" title="Delete" onClick={() => handleDelete(c.id, c.name)}><LuTrash2 size={14} /></button>
+                      {canWrite && <button className="btn btn-warning btn-icon" title="Edit" onClick={() => openEdit(c)}><LuPencil size={14} /></button>}
+                      {canWrite && <button className="btn btn-danger btn-icon" title="Delete" onClick={() => handleDelete(c.id, c.name)}><LuTrash2 size={14} /></button>}
+                      {!canWrite && <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>View only</span>}
                     </div>
                   </td>
                 </tr>

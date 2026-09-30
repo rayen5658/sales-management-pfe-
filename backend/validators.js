@@ -90,7 +90,14 @@ const validateCreateClient = [
   body('segment')
     .optional({ nullable: true })
     .trim()
-    .isIn(['SMB', 'Enterprise', 'Public', 'Startup', '']).withMessage('segment must be one of: SMB, Enterprise, Public, Startup'),
+    .isLength({ max: 50 }).withMessage('segment must be at most 50 characters'),
+  body('credit_limit')
+    .optional({ nullable: true, checkFalsy: true })
+    .isFloat({ min: 0 }).withMessage('credit_limit must be a positive number'),
+  body('payment_terms')
+    .optional({ nullable: true })
+    .trim()
+    .isIn(['immediate', 'net_15', 'net_30', 'net_60']).withMessage('payment_terms must be one of: immediate, net_15, net_30, net_60'),
 ];
 
 const validateUpdateClient = validateCreateClient; // same rules apply
@@ -133,7 +140,7 @@ const validateUpdateOrderStatus = [
 
 const validateCancelOrder = [
   body('cancel_reason')
-    .optional()
+    .notEmpty().withMessage('cancel_reason is required')
     .trim()
     .isLength({ max: 500 }).withMessage('cancel_reason must be at most 500 characters'),
 ];
@@ -172,6 +179,23 @@ const validateLoginUser = [
     .notEmpty().withMessage('password is required'),
 ];
 
+const validateForgotPassword = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('email is required')
+    .isEmail().withMessage('email must be a valid email address')
+    .normalizeEmail(),
+];
+
+const validateResetPassword = [
+  body('token')
+    .trim()
+    .notEmpty().withMessage('token is required'),
+  body('password')
+    .notEmpty().withMessage('password is required')
+    .isLength({ min: 6 }).withMessage('password must be at least 6 characters'),
+];
+
 const validateUpdateUser = [
   body('firstname')
     .optional()
@@ -207,6 +231,102 @@ const validatePaginationQuery = [
     .isInt({ min: 1, max: 200 }).withMessage('limit must be between 1 and 200'),
 ];
 
+// ── Payment settings ─────────────────────────────────────────────────────────
+
+const validateUpdatePaymentSettings = [
+  body('api_key')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ min: 1, max: 500 }).withMessage('api_key must not be empty'),
+  body('wallet_id')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ min: 1, max: 200 }).withMessage('wallet_id must not be empty'),
+  body('konnect_enabled')
+    .isBoolean().withMessage('konnect_enabled must be true or false'),
+  body('bank_name')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 200 }).withMessage('bank_name must be at most 200 characters'),
+  body('bank_rib')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ min: 1, max: 60 }).withMessage('bank_rib must not be empty'),
+  body('bank_holder')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 200 }).withMessage('bank_holder must be at most 200 characters'),
+  body('bank_instructions')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 500 }).withMessage('bank_instructions must be at most 500 characters'),
+  body('bank_enabled')
+    .isBoolean().withMessage('bank_enabled must be true or false'),
+];
+
+// ── Suppliers ─────────────────────────────────────────────────────────────────
+
+const validateCreateSupplier = [
+  body('name')
+    .trim()
+    .notEmpty().withMessage('name is required')
+    .isLength({ max: 200 }).withMessage('name must be at most 200 characters'),
+  body('email')
+    .optional({ nullable: true, checkFalsy: true })
+    .isEmail().withMessage('email must be valid'),
+];
+
+const validateUpdateSupplier = validateCreateSupplier;
+
+// ── Purchase orders ──────────────────────────────────────────────────────────
+
+const validateCreatePurchaseOrder = [
+  body('supplier_id')
+    .notEmpty().withMessage('supplier_id is required')
+    .isInt({ min: 1 }).withMessage('supplier_id must be a positive integer'),
+  body('items')
+    .isArray({ min: 1 }).withMessage('items must be a non-empty array'),
+];
+
+const validateUpdatePurchaseOrderStatus = [
+  body('status')
+    .notEmpty().withMessage('status is required')
+    .isIn(['pending', 'ordered', 'received', 'cancelled']).withMessage('invalid status'),
+];
+
+// ── Order payment ─────────────────────────────────────────────────────────────
+
+const validateMarkOrderPaid = [
+  body('payment_method')
+    .optional({ nullable: true })
+    .isIn(['bank_transfer', 'cash', 'other']).withMessage('payment_method must be bank_transfer, cash or other'),
+  body('payment_note')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 300 }).withMessage('payment_note must be at most 300 characters'),
+];
+
+// ── Product variants ─────────────────────────────────────────────────────────
+
+const validateCreateVariant = [
+  body('name')
+    .trim()
+    .notEmpty().withMessage('name is required')
+    .isLength({ max: 100 }).withMessage('name must be at most 100 characters'),
+  body('reference')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isLength({ max: 100 }).withMessage('reference must be at most 100 characters'),
+  body('unit_price')
+    .notEmpty().withMessage('unit_price is required')
+    .isFloat({ min: 0 }).withMessage('unit_price must be a positive number'),
+  body('stock')
+    .optional({ nullable: true })
+    .isInt({ min: 0 }).withMessage('stock must be a positive integer'),
+];
+
+const validateUpdateVariant = validateCreateVariant;
+
 module.exports = {
   validateCreateProduct,
   validateUpdateProduct,
@@ -220,6 +340,16 @@ module.exports = {
   validateCancelOrder,
   validateRegisterUser,
   validateLoginUser,
+  validateForgotPassword,
+  validateResetPassword,
   validateUpdateUser,
   validatePaginationQuery,
+  validateUpdatePaymentSettings,
+  validateMarkOrderPaid,
+  validateCreateSupplier,
+  validateUpdateSupplier,
+  validateCreatePurchaseOrder,
+  validateUpdatePurchaseOrderStatus,
+  validateCreateVariant,
+  validateUpdateVariant,
 };

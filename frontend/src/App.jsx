@@ -1,11 +1,15 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import ClientProtectedRoute from './components/common/ClientProtectedRoute';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import PageTransition from './components/common/PageTransition';
 import Sidebar from './components/common/Sidebar';
 import TopBar from './components/common/TopBar';
 import ChatBot from './components/ChatBot';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Welcome from './pages/Welcome';
 import Dashboard from './pages/Dashboard';
 import ProductsPage from './pages/ProductsPage';
@@ -14,20 +18,31 @@ import ClientsPage from './pages/ClientsPage';
 import OrdersPage from './pages/OrdersPage';
 import UsersPage from './pages/UsersPage';
 import AuditLogsPage from './pages/AuditLogsPage';
+import PaymentSettingsPage from './pages/PaymentSettingsPage';
+import ReturnsPage from './pages/ReturnsPage';
+import FeedbackPage from './pages/FeedbackPage';
+import SuppliersPage from './pages/SuppliersPage';
+import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
 import ClientLogin from './pages/client/ClientLogin';
 import ClientPortal from './pages/client/ClientPortal';
 import ClientOrders from './pages/client/ClientOrders';
 import { useAuthStore } from './stores/authStore';
+import { useThemeStore } from './stores/themeStore';
 import './styles/index.css';
 
 function AppLayout({ children }) {
+  const location = useLocation();
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+    <div className="app-layout">
       <Sidebar />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div className="app-content">
         <TopBar />
-        <main style={{ flex: 1, padding: '2rem', overflowY: 'auto', background: 'var(--bg)' }}>
-          {children}
+        <main className="app-main">
+          <AnimatePresence mode="wait" initial={false}>
+            <PageTransition key={location.pathname}>
+              {children}
+            </PageTransition>
+          </AnimatePresence>
         </main>
       </div>
     </div>
@@ -42,7 +57,33 @@ function RootRedirect() {
     : <Welcome />;
 }
 
+// Sets document.title for public pages that don't go through TopBar
+const PUBLIC_TITLES = {
+  '/':               'Dynamix Services',
+  '/welcome':        'Welcome — Dynamix Services',
+  '/login':          'Sign In — Dynamix Services',
+  '/reset-password': 'Reset Password — Dynamix Services',
+  '/client/login':   'Client Portal — Dynamix Services',
+  '/client/portal':  'My Portal — Dynamix Services',
+  '/client/orders':  'My Orders — Dynamix Services',
+};
+
+function PublicTitleSetter() {
+  const location = useLocation();
+  useEffect(() => {
+    const title = PUBLIC_TITLES[location.pathname];
+    if (title) document.title = title;
+  }, [location.pathname]);
+  return null;
+}
+
 export default function App() {
+  const { initTheme } = useThemeStore();
+
+  useEffect(() => {
+    initTheme();
+  }, []);
+
   return (
     <ErrorBoundary fallback={
       <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
@@ -51,12 +92,14 @@ export default function App() {
       </div>
     }>
       <BrowserRouter>
+        <PublicTitleSetter />
         <ChatBot />
         <Routes>
           {/* Public routes */}
           <Route path="/"        element={<RootRedirect />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/login"   element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Protected routes */}
           <Route path="/dashboard"  element={<ProtectedRoute><AppLayout><ErrorBoundary><Dashboard /></ErrorBoundary></AppLayout></ProtectedRoute>} />
@@ -66,6 +109,11 @@ export default function App() {
           <Route path="/orders"     element={<ProtectedRoute><AppLayout><ErrorBoundary><OrdersPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
           <Route path="/users"      element={<ProtectedRoute requiredRole="Administrator"><AppLayout><ErrorBoundary><UsersPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
           <Route path="/audit-logs" element={<ProtectedRoute requiredRole="Administrator"><AppLayout><ErrorBoundary><AuditLogsPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/payment-settings" element={<ProtectedRoute requiredRole="Administrator"><AppLayout><ErrorBoundary><PaymentSettingsPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/returns"    element={<ProtectedRoute requiredRole={['Administrator', 'Manager']}><AppLayout><ErrorBoundary><ReturnsPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/feedback"   element={<ProtectedRoute requiredRole={['Administrator', 'Manager']}><AppLayout><ErrorBoundary><FeedbackPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/suppliers"      element={<ProtectedRoute requiredRole={['Administrator', 'Manager']}><AppLayout><ErrorBoundary><SuppliersPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
+          <Route path="/purchase-orders" element={<ProtectedRoute requiredRole={['Administrator', 'Manager']}><AppLayout><ErrorBoundary><PurchaseOrdersPage /></ErrorBoundary></AppLayout></ProtectedRoute>} />
 
           {/* Client portal */}
           <Route path="/client/login"  element={<ClientLogin />} />

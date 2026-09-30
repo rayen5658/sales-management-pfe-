@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dashboardService, userService, orderService } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
@@ -16,6 +16,53 @@ import TunisiaMap from '../components/dashboard/TunisiaMap';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import '../styles/pages.css';
 import './Dashboard.css';
+import Tilt3DCard from '../components/common/Tilt3DCard';
+import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
+
+// Animated progress bar — fills only when scrolled into view
+function AnimatedBar({ pct, color }) {
+  const [width, setWidth] = useState(0);
+  const ref = useRef(null);
+  useEffect(() => {
+    setWidth(0);
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setWidth(pct); },
+      { threshold: 0.3 }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [pct]);
+  return (
+    <div ref={ref} className="progress-bar">
+      <div className="progress-bar-fill" style={{ width: `${pct}%`, background: color, transition: 'width 0.85s cubic-bezier(0.22,1,0.36,1)' }} />
+    </div>
+  );
+}
+
+// KPI card — 3D tilt + animated counter
+function KpiCard({ label, rawValue, sub, subColor, Icon, bg, border, iconBg, shadow, color, index }) {
+  const animated = useAnimatedNumber(typeof rawValue === 'number' ? rawValue : 0, 850);
+  const isRev = label.toLowerCase().includes('revenue');
+  const display = isRev
+    ? new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 0 }).format(Math.round(animated)) + ' TND'
+    : Math.round(animated).toLocaleString();
+  return (
+    <Tilt3DCard
+      className="kpi-card"
+      style={{ background: bg, borderColor: border, animation: 'cardEntrance 0.5s cubic-bezier(0.22,1,0.36,1) both', animationDelay: `${index * 0.07}s` }}
+      intensity={10}
+    >
+      <div style={{ width: 56, height: 56, borderRadius: '50%', background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 8px 20px ${shadow}`, color: '#fff' }}>
+        <Icon size={26} strokeWidth={2} />
+      </div>
+      <div>
+        <p className="kpi-label">{label}</p>
+        <p className="kpi-value" data-chatbot={label.toLowerCase().replace(/\s+/g, '-')} style={{ color, fontSize: '1.5rem' }}>{display}</p>
+        {sub && <p className="kpi-sub" style={{ color: subColor, fontWeight: subColor ? 600 : undefined }}>{sub}</p>}
+      </div>
+    </Tilt3DCard>
+  );
+}
 
 // Export top products to PDF
 function exportTopProductsPDF(topProds, period) {
@@ -189,6 +236,13 @@ export default function Dashboard() {
   return (
     <div className="page">
 
+      {/* ── Floating ambient orbs ── */}
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle, rgba(13,148,136,0.055) 0%, transparent 70%)', top: '-200px', right: '-150px', animation: 'floaty 14s ease-in-out infinite' }} />
+        <div style={{ position: 'absolute', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(8,145,178,0.045) 0%, transparent 70%)', bottom: '-100px', left: '8%', animation: 'floaty 18s ease-in-out infinite', animationDelay: '3s' }} />
+        <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(168,85,247,0.035) 0%, transparent 70%)', top: '40%', left: '-80px', animation: 'floaty 22s ease-in-out infinite', animationDelay: '7s' }} />
+      </div>
+
       {/* ── Toolbar ── */}
       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
         {PERIODS.map(p => (
@@ -232,16 +286,20 @@ export default function Dashboard() {
           { label: 'Active Clients', value: kpis.activeClients || 0, sub: 'Active status in database', Icon: LuUsers,        bg: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '#bbf7d0', iconBg: 'linear-gradient(135deg,#22c55e,#15803d)', shadow: 'rgba(34,197,94,0.35)', color: '#16a34a' },
           { label: 'Products',       value: kpis.totalProducts || 0, sub: kpis.lowStockProducts > 0 ? `${kpis.lowStockProducts} low stock` : 'Stock OK', subColor: kpis.lowStockProducts > 0 ? '#ef4444' : undefined, Icon: LuPackage, bg: 'linear-gradient(135deg,#fff7ed,#ffedd5)', border: '#fed7aa', iconBg: 'linear-gradient(135deg,#f97316,#c2410c)', shadow: 'rgba(249,115,22,0.35)', color: '#ea580c' },
         ].map((k, i) => (
-          <div key={i} className="kpi-card" style={{ background: k.bg, borderColor: k.border }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: k.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 8px 20px ${k.shadow}`, color: '#fff' }}>
-              <k.Icon size={26} strokeWidth={2} />
-            </div>
-            <div>
-              <p className="kpi-label">{k.label}</p>
-              <p className="kpi-value" style={{ color: k.color, fontSize: '1.5rem' }}>{k.value}</p>
-              {k.sub && <p className="kpi-sub" style={{ color: k.subColor, fontWeight: k.subColor ? 600 : undefined }}>{k.sub}</p>}
-            </div>
-          </div>
+          <KpiCard
+            key={i}
+            index={i}
+            label={k.label}
+            rawValue={typeof k.value === 'number' ? k.value : parseFloat(String(k.value).replace(/[^\d.]/g, '')) || 0}
+            sub={k.sub}
+            subColor={k.subColor}
+            Icon={k.Icon}
+            bg={k.bg}
+            border={k.border}
+            iconBg={k.iconBg}
+            shadow={k.shadow}
+            color={k.color}
+          />
         ))}
       </div>
 
@@ -454,7 +512,7 @@ export default function Dashboard() {
                   <div key={i} className="stat-row">
                     <div className="rank-badge" style={{ background: colors[i] + '20', color: colors[i] }}>{i+1}</div>
                     <span style={{ fontSize: '0.8rem', fontWeight: 600, flex: 1, marginLeft: '0.6rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                    <div className="progress-bar"><div className="progress-bar-fill" style={{ width: `${pct}%`, background: colors[i] }} /></div>
+                    <AnimatedBar pct={pct} color={colors[i]} />
                     <span style={{ fontSize: '0.78rem', fontWeight: 700, color: colors[i], minWidth: '40px', textAlign: 'right' }}>{p.qty}</span>
                   </div>
                 );

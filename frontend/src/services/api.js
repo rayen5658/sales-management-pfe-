@@ -43,8 +43,14 @@ api.interceptors.response.use(
 );
 
 export const authService = {
-  login:    (email, password) => api.post('/auth/login', { email, password }),
-  register: (data)            => api.post('/auth/register', data),
+  login:          (email, password) => api.post('/auth/login', { email, password }),
+  register:       (data)            => api.post('/auth/register', data),
+  forgotPassword: (email)           => api.post('/auth/forgot-password', { email }),
+  resetPassword:  (token, password) => api.post('/auth/reset-password', { token, password }),
+};
+
+export const clientAuthService = {
+  register: (data) => api.post('/client-auth/register', data),
 };
 
 export const productService = {
@@ -58,6 +64,13 @@ export const productService = {
     form.append('file', file);
     return api.post('/products/import-csv', form, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
+};
+
+export const variantService = {
+  getByProduct: (productId)     => api.get(`/products/${productId}/variants`),
+  create:       (productId, d)  => api.post(`/products/${productId}/variants`, d),
+  update:       (id, d)         => api.put(`/variants/${id}`, d),
+  delete:       (id)            => api.delete(`/variants/${id}`),
 };
 
 export const categoryService = {
@@ -76,6 +89,7 @@ export const clientService = {
   update:    (id, d)  => api.put(`/clients/${id}`, d),
   archive:   (id)     => api.put(`/clients/${id}/archive`),
   restore:   (id)     => api.put(`/clients/${id}/restore`),
+  approve:   (id)     => api.put(`/clients/${id}/approve`),
   delete:    (id)     => api.delete(`/clients/${id}`),
 };
 
@@ -89,6 +103,7 @@ export const orderService = {
   cancel:          (id, reason)   => api.put(`/orders/${id}/cancel`, { cancel_reason: reason }),
   updateStatus:    (id, status)   => api.put(`/orders/${id}/status`, { status }),
   ship:            (id, data)     => api.post(`/orders/${id}/ship`, data),
+  markPaid:        (id, data)     => api.put(`/orders/${id}/mark-paid`, data),
 };
 
 export const userService = {
@@ -107,10 +122,47 @@ export const roleService = {
 export const dashboardService = {
   getStats:     (period = 'year', user_id = '', region = '') => api.get('/dashboard/stats', { params: { period, ...(user_id && { user_id }), ...(region && { region }) } }),
   getByRegion:  () => api.get('/dashboard/region'),
+  setGoal:      (monthly_target) => api.put('/dashboard/goal', { monthly_target }),
 };
 
 export const auditService = {
   getLogs: () => api.get('/audit-logs'),
+};
+
+export const notificationService = {
+  get: () => api.get('/notifications'),
+};
+
+export const paymentSettingsService = {
+  get:    ()     => api.get('/payment-settings'),
+  update: (data) => api.put('/payment-settings', data),
+};
+
+export const supplierService = {
+  getAll:  ()     => api.get('/suppliers'),
+  getById: (id)   => api.get(`/suppliers/${id}`),
+  create:  (data) => api.post('/suppliers', data),
+  update:  (id, d)=> api.put(`/suppliers/${id}`, d),
+  delete:  (id)   => api.delete(`/suppliers/${id}`),
+};
+
+export const purchaseOrderService = {
+  getAll:       (params)     => api.get('/purchase-orders', { params }),
+  getById:      (id)         => api.get(`/purchase-orders/${id}`),
+  create:       (data)       => api.post('/purchase-orders', data),
+  updateStatus: (id, status) => api.put(`/purchase-orders/${id}/status`, { status }),
+  cancel:       (id, reason) => api.put(`/purchase-orders/${id}/cancel`, { cancel_reason: reason }),
+  delete:       (id)         => api.delete(`/purchase-orders/${id}`),
+};
+
+export const returnService = {
+  getAll:  ()             => api.get('/returns'),
+  approve: (id, note)     => api.put(`/returns/${id}/approve`, { resolution_note: note }),
+  reject:  (id, note)     => api.put(`/returns/${id}/reject`, { resolution_note: note }),
+};
+
+export const feedbackService = {
+  getAll: () => api.get('/feedback'),
 };
 
 export default api;

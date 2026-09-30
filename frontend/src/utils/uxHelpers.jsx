@@ -1,11 +1,11 @@
 // ============================================================================
-// UTILITAIRE UX AMÉLIORÉ - Toast & Confirmations
+// UX UTILITIES - Toast & Confirmations
 // ============================================================================
 
 import { Toaster, toast } from 'react-hot-toast';
 
 /**
- * Configuration globale des toasts (centré, avec duée longue)
+ * Global toast configuration (centered, long duration)
  */
 export function setupToasterGlobal() {
   return (
@@ -15,7 +15,7 @@ export function setupToasterGlobal() {
       toastOptions={{
         duration: 4000,
         style: {
-          background: '#1e1b4b',
+          background: '#042f2e',
           color: '#fff',
           fontFamily: 'Inter, system-ui, sans-serif',
           fontSize: '0.875rem',
@@ -29,9 +29,9 @@ export function setupToasterGlobal() {
 }
 
 /**
- * Toast de succès centrée
+ * Success toast
  * @param {string} message
- * @param {number} duration en ms (défaut: 4000)
+ * @param {number} duration in ms (default: 4000)
  */
 export const notifySuccess = (message, duration = 4000) => {
   toast.success(message, {
@@ -45,7 +45,7 @@ export const notifySuccess = (message, duration = 4000) => {
 };
 
 /**
- * Toast d'erreur centré
+ * Error toast
  * @param {string} message
  */
 export const notifyError = (message, duration = 5000) => {
@@ -60,7 +60,7 @@ export const notifyError = (message, duration = 5000) => {
 };
 
 /**
- * Toast d'info/warning
+ * Info/warning toast
  * @param {string} message
  */
 export const notifyInfo = (message, duration = 4000) => {
@@ -75,14 +75,14 @@ export const notifyInfo = (message, duration = 4000) => {
 };
 
 /**
- * Composant Modal de Confirmation réutilisable
+ * Reusable Confirmation Modal
  * Usage:
  * <ConfirmDialog
  *   isOpen={isOpen}
- *   title="Supprimer produit?"
- *   message={`Êtes-vous sûr de supprimer "${productName}"? Cette action est irréversible.`}
- *   confirmText="Supprimer"
- *   cancelText="Annuler"
+ *   title="Delete product?"
+ *   message={`Are you sure you want to delete "${productName}"? This action is irreversible.`}
+ *   confirmText="Delete"
+ *   cancelText="Cancel"
  *   isDangerous={true}
  *   onConfirm={() => { ... }}
  *   onCancel={() => { ... }}
@@ -93,8 +93,8 @@ export function ConfirmDialog({
   isOpen,
   title,
   message,
-  confirmText = 'Confirmer',
-  cancelText = 'Annuler',
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
   isDangerous = false,
   onConfirm,
   onCancel,
@@ -103,8 +103,8 @@ export function ConfirmDialog({
 }) {
   if (!isOpen) return null;
 
-  const confirmBg = isDangerous ? '#ef4444' : '#4f46e5';
-  const confirmBgHover = isDangerous ? '#dc2626' : '#6366f1';
+  const confirmBg = isDangerous ? '#ef4444' : '#0d9488';
+  const confirmBgHover = isDangerous ? '#dc2626' : '#0d9488';
 
   return (
     <div
@@ -121,7 +121,7 @@ export function ConfirmDialog({
     >
       <div
         style={{
-          background: '#fff',
+          background: 'var(--card-bg)',
           borderRadius: '16px',
           padding: '2rem',
           maxWidth: 420,
@@ -130,13 +130,13 @@ export function ConfirmDialog({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Titre */}
+        {/* Title */}
         <h2
           style={{
             margin: 0,
             fontSize: '1.25rem',
             fontWeight: 700,
-            color: '#1e1b4b',
+            color: 'var(--text)',
             marginBottom: '0.75rem',
           }}
         >
@@ -148,7 +148,7 @@ export function ConfirmDialog({
           style={{
             margin: 0,
             fontSize: '0.875rem',
-            color: '#6b7280',
+            color: 'var(--text-muted)',
             lineHeight: 1.6,
             marginBottom: '1.5rem',
           }}
@@ -159,7 +159,7 @@ export function ConfirmDialog({
         {/* Children (extra content) */}
         {children && <div style={{ marginBottom: '1.5rem' }}>{children}</div>}
 
-        {/* Boutons */}
+        {/* Buttons */}
         <div
           style={{
             display: 'flex',
@@ -172,12 +172,12 @@ export function ConfirmDialog({
             disabled={isLoading}
             style={{
               padding: '0.6rem 1.2rem',
-              border: '1.5px solid #e2e8f0',
-              background: '#fff',
+              border: '1.5px solid var(--border)',
+              background: 'var(--card-bg)',
               borderRadius: '8px',
               fontSize: '0.875rem',
               fontWeight: 600,
-              color: '#374151',
+              color: 'var(--text-muted)',
               cursor: isLoading ? 'not-allowed' : 'pointer',
               opacity: isLoading ? 0.5 : 1,
             }}
@@ -238,7 +238,7 @@ export function ConfirmDialog({
 }
 
 /**
- * Modal de succès commande (centré, avec actions)
+ * Order success modal (centered, with actions)
  */
 export function OrderSuccessModal({
   isOpen,
@@ -264,7 +264,7 @@ export function OrderSuccessModal({
     >
       <div
         style={{
-          background: '#fff',
+          background: 'var(--card-bg)',
           borderRadius: '16px',
           padding: '2.5rem',
           maxWidth: 480,
@@ -295,11 +295,11 @@ export function OrderSuccessModal({
             margin: 0,
             fontSize: '1.5rem',
             fontWeight: 700,
-            color: '#1e1b4b',
+            color: '#042f2e',
             marginBottom: '0.5rem',
           }}
         >
-          Commande créée !
+          Order Placed!
         </h2>
 
         <p
@@ -311,25 +311,25 @@ export function OrderSuccessModal({
             lineHeight: 1.6,
           }}
         >
-          Votre commande <strong>#{orderNumber}</strong> a été enregistrée avec succès.
+          Your order <strong>#{orderNumber}</strong> has been successfully placed.
           <br />
-          Elle est actuellement en attente d'approbation de notre équipe.
+          It is currently awaiting approval from our team.
         </p>
 
         {/* Summary box */}
         <div
           style={{
-            background: '#f8fafc',
+            background: 'var(--card-bg-2)',
             borderRadius: '12px',
             padding: '1rem',
             marginBottom: '1.5rem',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--border)',
           }}
         >
-          <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.35rem' }}>
-            Montant total
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-faint)', marginBottom: '0.35rem' }}>
+            Order Total
           </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#4f46e5' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0d9488' }}>
             {parseFloat(totalAmount).toFixed(2)} TND
           </div>
         </div>
@@ -340,7 +340,7 @@ export function OrderSuccessModal({
             onClick={onViewOrder}
             style={{
               padding: '0.75rem 1.5rem',
-              background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+              background: 'linear-gradient(135deg, #0d9488, #0891b2)',
               border: 'none',
               borderRadius: '8px',
               fontSize: '0.875rem',
@@ -349,23 +349,23 @@ export function OrderSuccessModal({
               cursor: 'pointer',
             }}
           >
-            Voir mes commandes
+            View my orders
           </button>
 
           <button
             onClick={onContinueShopping}
             style={{
               padding: '0.75rem 1.5rem',
-              background: '#f1f5f9',
-              border: '1.5px solid #e2e8f0',
+              background: 'var(--card-bg-2)',
+              border: '1.5px solid var(--border)',
               borderRadius: '8px',
               fontSize: '0.875rem',
               fontWeight: 600,
-              color: '#374151',
+              color: 'var(--text-muted)',
               cursor: 'pointer',
             }}
           >
-            Continuer mon shopping
+            Continue shopping
           </button>
         </div>
       </div>

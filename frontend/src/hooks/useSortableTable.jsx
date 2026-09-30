@@ -64,7 +64,7 @@ export function SortIcon({ col, sortKey, sortDir }) {
     return <span style={{ marginLeft: '4px', opacity: 0.3, fontSize: '0.7rem' }}>↕</span>;
   }
   return (
-    <span style={{ marginLeft: '4px', color: '#4f46e5', fontSize: '0.75rem', fontWeight: 700 }}>
+    <span style={{ marginLeft: '4px', color: '#0d9488', fontSize: '0.75rem', fontWeight: 700 }}>
       {sortDir === 'asc' ? '↑' : '↓'}
     </span>
   );

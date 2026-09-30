@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useClientAuthStore } from '../stores/clientAuthStore';
+import { authService, clientAuthService } from '../services/api';
 import AppLogo from '../components/common/AppLogo';
+import DarkModeToggle from '../components/common/DarkModeToggle';
+import PulseWave from '../components/common/PulseWave';
 
 // ── SVG Icon set — replaces emoji throughout Login ────────────────────────────
 function IconChart()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>; }
@@ -36,12 +39,12 @@ function EyeIcon({ open }) {
 const baseInputStyle = {
   width: '100%',
   padding: '0.75rem 1rem',
-  border: '1.5px solid #e5e7eb',
+  border: '1.5px solid var(--border)',
   borderRadius: '10px',
   fontSize: '0.95rem',
   outline: 'none',
-  background: '#f9fafb',
-  color: '#111827',
+  background: 'var(--card-bg-2)',
+  color: 'var(--text)',
   boxSizing: 'border-box',
   transition: 'border-color 0.15s, box-shadow 0.15s',
   fontFamily: 'inherit',
@@ -59,14 +62,14 @@ function Input({ type, value, onChange, placeholder, disabled, autoComplete, rig
         autoComplete={autoComplete}
         style={{ ...baseInputStyle, paddingRight: rightSlot ? '2.75rem' : '1rem' }}
         onFocus={e => {
-          e.target.style.borderColor = '#4f46e5';
-          e.target.style.boxShadow = '0 0 0 3px rgba(79,70,229,0.12)';
-          e.target.style.background = '#fff';
+          e.target.style.borderColor = 'var(--primary)';
+          e.target.style.boxShadow = '0 0 0 3px rgba(13,148,136,0.12)';
+          e.target.style.background = 'var(--card-bg)';
         }}
         onBlur={e => {
-          e.target.style.borderColor = '#e5e7eb';
+          e.target.style.borderColor = 'var(--border)';
           e.target.style.boxShadow = 'none';
-          e.target.style.background = '#f9fafb';
+          e.target.style.background = 'var(--card-bg-2)';
         }}
       />
       {rightSlot && (
@@ -106,8 +109,8 @@ function BrandPanel({ role }) {
     <div style={{
       flex: 1,
       background: isClient
-        ? 'linear-gradient(145deg,#312e81 0%,#4f46e5 55%,#7c3aed 100%)'
-        : 'linear-gradient(145deg,#1e1b4b 0%,#3730a3 55%,#4f46e5 100%)',
+        ? 'linear-gradient(145deg,#134e4a 0%,#0d9488 55%,#0891b2 100%)'
+        : 'linear-gradient(145deg,#042f2e 0%,#115e59 55%,#0d9488 100%)',
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
@@ -155,6 +158,16 @@ function BrandPanel({ role }) {
           ))}
         </div>
 
+        {/* Live activity strip */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '0.75rem',
+          background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.11)',
+          borderRadius: '12px', padding: '0.65rem 0.9rem', marginBottom: '1.5rem',
+        }}>
+          <PulseWave bars={9} height={24} color="#5eead4" color2="#22d3ee" speed={1500} barWidth={3} gap={3} />
+          <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.75rem', fontWeight: 600 }}>Live sales activity, updated in real time</span>
+        </div>
+
         {/* Feature cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
           {features.map(f => (
@@ -196,7 +209,7 @@ function BrandPanel({ role }) {
                 bottom: 'calc(100% + 8px)',
                 left: '50%',
                 transform: 'translateX(-50%) translateY(4px)',
-                background: '#1e1b4b',
+                background: '#042f2e',
                 color: '#e2e8f0',
                 padding: '0.55rem 0.85rem',
                 borderRadius: '10px',
@@ -218,7 +231,7 @@ function BrandPanel({ role }) {
                   position: 'absolute', bottom: -5, left: '50%',
                   transform: 'translateX(-50%) rotate(45deg)',
                   width: 10, height: 10,
-                  background: '#1e1b4b',
+                  background: '#042f2e',
                   border: '1px solid rgba(255,255,255,0.12)',
                   borderTop: 'none', borderLeft: 'none',
                 }} />
@@ -238,18 +251,18 @@ function RoleSelector({ onSelect }) {
   return (
     <div style={{ width: '100%', maxWidth: 400 }}>
       <div style={{ marginBottom: '2.5rem' }}>
-        <h1 style={{ fontSize: '1.9rem', fontWeight: 900, color: '#111827', margin: '0 0 0.5rem', letterSpacing: '-0.02em' }}>
+        <h1 style={{ fontSize: '1.9rem', fontWeight: 900, color: 'var(--text)', margin: '0 0 0.5rem', letterSpacing: '-0.02em' }}>
           Welcome Back
         </h1>
-        <p style={{ color: '#6b7280', fontSize: '0.95rem', margin: 0 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: 0 }}>
           Choose how you want to sign in
         </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
         {[
-          { role: 'admin',  icon: <IconShield />,   title: 'Admin / Staff',  sub: 'Administrators, managers and sales agents', grad: 'linear-gradient(135deg,#4f46e5,#3730a3)' },
-          { role: 'client', icon: <IconBuilding />,  title: 'Client Portal',  sub: 'Place and track your orders',              grad: 'linear-gradient(135deg,#7c3aed,#4f46e5)' },
+          { role: 'admin',  icon: <IconShield />,   title: 'Admin / Staff',  sub: 'Administrators, managers and sales agents', grad: 'linear-gradient(135deg,#0d9488,#115e59)' },
+          { role: 'client', icon: <IconBuilding />,  title: 'Client Portal',  sub: 'Place and track your orders',              grad: 'linear-gradient(135deg,#0891b2,#0d9488)' },
         ].map(({ role, icon, title, sub, grad }) => (
           <button
             key={role}
@@ -257,29 +270,29 @@ function RoleSelector({ onSelect }) {
             style={{
               display: 'flex', alignItems: 'center', gap: '1rem',
               padding: '1rem 1.1rem',
-              border: '1.5px solid #e5e7eb', borderRadius: '14px',
-              background: '#fff', cursor: 'pointer', textAlign: 'left',
+              border: '1.5px solid var(--border)', borderRadius: '14px',
+              background: 'var(--card-bg)', cursor: 'pointer', textAlign: 'left',
               transition: 'all 0.18s', width: '100%',
             }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#4f46e5'; e.currentTarget.style.background = '#f5f3ff'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(79,70,229,0.12)'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#fff'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.background = 'var(--primary-light)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(13,148,136,0.12)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--card-bg)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
           >
             <div style={{ width: 44, height: 44, borderRadius: '12px', flexShrink: 0, background: grad, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
               {icon}
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#111827' }}>{title}</div>
-              <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.15rem' }}>{sub}</div>
+              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text)' }}>{title}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{sub}</div>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
           </button>
         ))}
       </div>
 
-      <p style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.82rem', color: '#9ca3af' }}>
-        <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '0.82rem', padding: 0, textDecoration: 'underline' }}>
+      <p style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.82rem', color: 'var(--text-faint)' }}>
+        <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.82rem', padding: 0, textDecoration: 'underline' }}>
           ← Back to home
         </button>
       </p>
@@ -290,14 +303,78 @@ function RoleSelector({ onSelect }) {
 // ── Shared form label ─────────────────────────────────────────────────────────
 function Label({ children }) {
   return (
-    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#374151', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
       {children}
     </label>
   );
 }
 
+// ── Admin forgot-password form ────────────────────────────────────────────────
+function AdminForgotPasswordForm({ onBack }) {
+  const [email, setEmail]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+  const [sent, setSent]       = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!email) { setError('Email is required'); return; }
+    setLoading(true);
+    try {
+      await authService.forgotPassword(email);
+      setSent(true);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ width: '100%', maxWidth: 400 }}>
+      <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to sign in
+      </button>
+
+      <div style={{ marginBottom: '2rem' }}>
+        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#0d9488,#115e59)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(13,148,136,0.3)' }}>
+          <IconLock />
+        </div>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--text)', margin: '0 0 0.4rem', letterSpacing: '-0.02em' }}>Reset your password</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>Enter your email and we&apos;ll send you a reset link</p>
+      </div>
+
+      {sent ? (
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '1rem 1.1rem', color: '#15803d', fontSize: '0.875rem', lineHeight: 1.5 }}>
+          ✅ If that email is registered, a reset link has been sent to it. Check your inbox — the link expires in 30 minutes.
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+          {error && (
+            <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: '10px', padding: '0.75rem 1rem', color: 'var(--danger-text)', fontSize: '0.875rem' }}>
+              ⚠ {error}
+            </div>
+          )}
+          <div>
+            <Label>Email</Label>
+            <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="firstname@domain.com" disabled={loading} autoComplete="email" />
+          </div>
+          <button
+            type="submit" disabled={loading}
+            style={{ width: '100%', padding: '0.85rem', background: loading ? '#5eead4' : 'linear-gradient(135deg,#0d9488,#115e59)', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1rem', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 16px rgba(13,148,136,0.35)', marginTop: '0.25rem' }}
+          >
+            {loading ? 'Sending...' : 'Send reset link'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 // ── Admin login form ──────────────────────────────────────────────────────────
-function AdminLoginForm({ onBack }) {
+function AdminLoginForm({ onBack, onForgotPassword }) {
   const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
   const [email, setEmail]               = useState('');
@@ -316,22 +393,22 @@ function AdminLoginForm({ onBack }) {
 
   return (
     <div style={{ width: '100%', maxWidth: 400 }}>
-      <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '0.85rem', marginBottom: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
+      <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back
       </button>
 
       <div style={{ marginBottom: '2rem' }}>
-        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#4f46e5,#3730a3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(79,70,229,0.3)' }}>
+        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#0d9488,#115e59)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(13,148,136,0.3)' }}>
           <IconShield />
         </div>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: '#111827', margin: '0 0 0.4rem', letterSpacing: '-0.02em' }}>Admin / Staff</h1>
-        <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: 0 }}>Enter your credentials to access the dashboard</p>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--text)', margin: '0 0 0.4rem', letterSpacing: '-0.02em' }}>Admin / Staff</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>Enter your credentials to access the dashboard</p>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '0.75rem 1rem', color: '#991b1b', fontSize: '0.875rem' }}>
+          <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: '10px', padding: '0.75rem 1rem', color: 'var(--danger-text)', fontSize: '0.875rem' }}>
             ⚠ {error}
           </div>
         )}
@@ -340,13 +417,18 @@ function AdminLoginForm({ onBack }) {
           <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="firstname@domain.com" disabled={isLoading} autoComplete="email" />
         </div>
         <div>
-          <Label>Password</Label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+            <Label>Password</Label>
+            <button type="button" onClick={onForgotPassword} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontSize: '0.78rem', fontWeight: 600, padding: 0, marginBottom: '0.4rem' }}>
+              Forgot password?
+            </button>
+          </div>
           <Input
             type={showPassword ? 'text' : 'password'}
             value={password} onChange={e => setPassword(e.target.value)}
             placeholder="Your password" disabled={isLoading} autoComplete="current-password"
             rightSlot={
-              <button type="button" onClick={() => setShowPassword(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0, display: 'flex' }}>
+              <button type="button" onClick={() => setShowPassword(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', padding: 0, display: 'flex' }}>
                 <EyeIcon open={showPassword} />
               </button>
             }
@@ -354,7 +436,7 @@ function AdminLoginForm({ onBack }) {
         </div>
         <button
           type="submit" disabled={isLoading}
-          style={{ width: '100%', padding: '0.85rem', background: isLoading ? '#a5b4fc' : 'linear-gradient(135deg,#4f46e5,#3730a3)', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1rem', fontWeight: 800, cursor: isLoading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 16px rgba(79,70,229,0.35)', marginTop: '0.25rem', transition: 'transform 0.15s, filter 0.15s' }}
+          style={{ width: '100%', padding: '0.85rem', background: isLoading ? '#5eead4' : 'linear-gradient(135deg,#0d9488,#115e59)', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1rem', fontWeight: 800, cursor: isLoading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 16px rgba(13,148,136,0.35)', marginTop: '0.25rem', transition: 'transform 0.15s, filter 0.15s' }}
           onMouseEnter={e => { if (!isLoading) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.filter = 'brightness(1.06)'; }}}
           onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.filter = 'none'; }}
         >
@@ -365,8 +447,98 @@ function AdminLoginForm({ onBack }) {
   );
 }
 
+// ── Client registration form (self-service signup, pending approval) ──────────
+function ClientRegisterForm({ onBack }) {
+  const [form, setForm] = useState({ company_name: '', email: '', phone: '', password: '', confirmPassword: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+  const [done, setDone]       = useState(false);
+
+  const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.company_name || !form.email || !form.password) { setError('Company name, email and password are required'); return; }
+    if (form.password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    if (form.password !== form.confirmPassword) { setError('Passwords do not match'); return; }
+
+    setLoading(true);
+    try {
+      await clientAuthService.register({
+        company_name: form.company_name,
+        email: form.email,
+        phone: form.phone || undefined,
+        password: form.password,
+      });
+      setDone(true);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ width: '100%', maxWidth: 400 }}>
+      <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to sign in
+      </button>
+
+      <div style={{ marginBottom: '2rem' }}>
+        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#0891b2,#0d9488)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(8,145,178,0.3)' }}>
+          <IconBuilding />
+        </div>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--text)', margin: '0 0 0.4rem', letterSpacing: '-0.02em' }}>Create your account</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>Register your business — an admin will review and approve access</p>
+      </div>
+
+      {done ? (
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '1rem 1.1rem', color: '#15803d', fontSize: '0.875rem', lineHeight: 1.5 }}>
+          ✅ Registration submitted! Your account is pending approval — we&apos;ll email you at <strong>{form.email}</strong> once it&apos;s reviewed.
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+          {error && (
+            <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: '10px', padding: '0.75rem 1rem', color: 'var(--danger-text)', fontSize: '0.875rem' }}>
+              ⚠ {error}
+            </div>
+          )}
+          <div>
+            <Label>Company name</Label>
+            <Input value={form.company_name} onChange={set('company_name')} placeholder="Acme Corp" disabled={loading} autoComplete="organization" />
+          </div>
+          <div>
+            <Label>Email</Label>
+            <Input type="email" value={form.email} onChange={set('email')} placeholder="your@company.com" disabled={loading} autoComplete="email" />
+          </div>
+          <div>
+            <Label>Phone (optional)</Label>
+            <Input value={form.phone} onChange={set('phone')} placeholder="+216 ..." disabled={loading} autoComplete="tel" />
+          </div>
+          <div>
+            <Label>Password</Label>
+            <Input type="password" value={form.password} onChange={set('password')} placeholder="At least 6 characters" disabled={loading} autoComplete="new-password" />
+          </div>
+          <div>
+            <Label>Confirm password</Label>
+            <Input type="password" value={form.confirmPassword} onChange={set('confirmPassword')} placeholder="Re-enter your password" disabled={loading} autoComplete="new-password" />
+          </div>
+          <button
+            type="submit" disabled={loading}
+            style={{ width: '100%', padding: '0.85rem', background: loading ? '#67e8f9' : 'linear-gradient(135deg,#0891b2,#0d9488)', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1rem', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 16px rgba(8,145,178,0.35)', marginTop: '0.25rem' }}
+          >
+            {loading ? 'Submitting...' : 'Create account'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 // ── Client login form ─────────────────────────────────────────────────────────
-function ClientLoginForm({ onBack }) {
+function ClientLoginForm({ onBack, onRegister }) {
   const navigate = useNavigate();
   const { login, isLoading } = useClientAuthStore();
   const [email, setEmail]               = useState('');
@@ -385,22 +557,22 @@ function ClientLoginForm({ onBack }) {
 
   return (
     <div style={{ width: '100%', maxWidth: 400 }}>
-      <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '0.85rem', marginBottom: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
+      <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Back
       </button>
 
       <div style={{ marginBottom: '2rem' }}>
-        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(124,58,237,0.3)' }}>
+        <div style={{ width: 48, height: 48, borderRadius: '14px', background: 'linear-gradient(135deg,#0891b2,#0d9488)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(8,145,178,0.3)' }}>
           <IconBuilding />
         </div>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: '#111827', margin: '0 0 0.4rem', letterSpacing: '-0.02em' }}>Client Portal</h1>
-        <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: 0 }}>Sign in to place and track your orders</p>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--text)', margin: '0 0 0.4rem', letterSpacing: '-0.02em' }}>Client Portal</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>Sign in to place and track your orders</p>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '0.75rem 1rem', color: '#991b1b', fontSize: '0.875rem' }}>
+          <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: '10px', padding: '0.75rem 1rem', color: 'var(--danger-text)', fontSize: '0.875rem' }}>
             ⚠ {error}
           </div>
         )}
@@ -415,7 +587,7 @@ function ClientLoginForm({ onBack }) {
             value={password} onChange={e => setPassword(e.target.value)}
             placeholder="Your password" disabled={isLoading} autoComplete="current-password"
             rightSlot={
-              <button type="button" onClick={() => setShowPassword(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0, display: 'flex' }}>
+              <button type="button" onClick={() => setShowPassword(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', padding: 0, display: 'flex' }}>
                 <EyeIcon open={showPassword} />
               </button>
             }
@@ -423,7 +595,7 @@ function ClientLoginForm({ onBack }) {
         </div>
         <button
           type="submit" disabled={isLoading}
-          style={{ width: '100%', padding: '0.85rem', background: isLoading ? '#c4b5fd' : 'linear-gradient(135deg,#7c3aed,#4f46e5)', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1rem', fontWeight: 800, cursor: isLoading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 16px rgba(124,58,237,0.35)', marginTop: '0.25rem', transition: 'transform 0.15s, filter 0.15s' }}
+          style={{ width: '100%', padding: '0.85rem', background: isLoading ? '#67e8f9' : 'linear-gradient(135deg,#0891b2,#0d9488)', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1rem', fontWeight: 800, cursor: isLoading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 16px rgba(8,145,178,0.35)', marginTop: '0.25rem', transition: 'transform 0.15s, filter 0.15s' }}
           onMouseEnter={e => { if (!isLoading) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.filter = 'brightness(1.06)'; }}}
           onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.filter = 'none'; }}
         >
@@ -431,8 +603,11 @@ function ClientLoginForm({ onBack }) {
         </button>
       </form>
 
-      <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.8rem', color: '#9ca3af' }}>
-        Don't have access? Contact your sales representative.
+      <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-faint)' }}>
+        New here?{' '}
+        <button onClick={onRegister} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontSize: '0.8rem', fontWeight: 700, padding: 0, textDecoration: 'underline' }}>
+          Create an account
+        </button>
       </p>
     </div>
   );
@@ -447,22 +622,45 @@ export default function Login() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
+      {/* Subtle grid + glow background */}
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          backgroundImage: `
+            linear-gradient(rgba(13,148,136,0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(13,148,136,0.04) 1px, transparent 1px)
+          `,
+          backgroundSize: '44px 44px',
+        }} />
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'radial-gradient(ellipse 70% 55% at 25% 0%, rgba(13,148,136,0.07), transparent)',
+        }} />
+      </div>
+
       {/* Left — white form side */}
       <div style={{
         width: '100%', maxWidth: 560,
         display: 'flex', flexDirection: 'column',
         justifyContent: 'center', alignItems: 'center',
         padding: 'clamp(2rem,5vw,3.5rem)',
-        background: '#fff',
+        background: 'var(--card-bg)',
+        position: 'relative',
+        zIndex: 1,
       }}>
-        {view === 'select' && <RoleSelector onSelect={setView} />}
-        {view === 'admin'  && <AdminLoginForm  onBack={() => setView('select')} />}
-        {view === 'client' && <ClientLoginForm onBack={() => setView('select')} />}
+        <div style={{ position: 'absolute', top: 'clamp(1rem,3vw,1.75rem)', right: 'clamp(1rem,3vw,1.75rem)' }}>
+          <DarkModeToggle size={36} />
+        </div>
+        {view === 'select'        && <RoleSelector onSelect={setView} />}
+        {view === 'admin'         && <AdminLoginForm  onBack={() => setView('select')} onForgotPassword={() => setView('admin-forgot')} />}
+        {view === 'admin-forgot'  && <AdminForgotPasswordForm onBack={() => setView('admin')} />}
+        {view === 'client'        && <ClientLoginForm onBack={() => setView('select')} onRegister={() => setView('client-register')} />}
+        {view === 'client-register' && <ClientRegisterForm onBack={() => setView('client')} />}
       </div>
 
       {/* Right — branded panel, hidden on mobile */}
-      <div style={{ flex: 1, display: 'flex' }} className="lbp">
-        <BrandPanel role={view === 'client' ? 'client' : 'admin'} />
+      <div style={{ flex: 1, display: 'flex', position: 'relative', zIndex: 1 }} className="lbp">
+        <BrandPanel role={(view === 'client' || view === 'client-register') ? 'client' : 'admin'} />
       </div>
 
       <style>{`

@@ -20,10 +20,10 @@ export default class ErrorBoundary extends React.Component {
         this.props.fallback || (
           <div style={{
             padding: '1rem',
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
+            background: 'var(--danger-bg)',
+            border: '1px solid var(--danger-border)',
             borderRadius: '8px',
-            color: '#991b1b',
+            color: 'var(--danger-text)',
             fontSize: '0.85rem',
           }}>
             ⚠ This component could not load.

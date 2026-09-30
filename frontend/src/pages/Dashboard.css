@@ -22,7 +22,7 @@
   font-size: 0.8rem;
   font-weight: 600;
   border: 1.5px solid var(--border);
-  background: #fff;
+  background: var(--card-bg);
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -39,18 +39,18 @@
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+  box-shadow: 0 4px 12px rgba(13,148,136,0.3);
 }
 
 /* ── Charts grid ── */
 .charts-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
 }
 
 @media (max-width: 1024px) {
-  .charts-grid { grid-template-columns: 1fr; }
+  .charts-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-header { flex-direction: column; }
 }
 
@@ -115,7 +115,7 @@
 .spinner-lg {
   width: 40px;
   height: 40px;
-  border: 3px solid #e2e8f0;
+  border: 3px solid var(--border);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -123,13 +123,37 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Card entrance animation ── */
+@keyframes cardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Floating orb keyframe ── */
+@keyframes floaty {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%       { transform: translate3d(0, -18px, 0); }
+}
+
+/* ── Staggered chart card entrance ── */
+.charts-grid > *:nth-child(1) { animation: cardEntrance 0.5s cubic-bezier(0.22,1,0.36,1) 0.05s both; }
+.charts-grid > *:nth-child(2) { animation: cardEntrance 0.5s cubic-bezier(0.22,1,0.36,1) 0.13s both; }
+.charts-grid > *:nth-child(3) { animation: cardEntrance 0.5s cubic-bezier(0.22,1,0.36,1) 0.21s both; }
+.charts-grid > *:nth-child(4) { animation: cardEntrance 0.5s cubic-bezier(0.22,1,0.36,1) 0.29s both; }
+
 /* ── Top products progress bars (like Dabang) ── */
 .stat-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.65rem 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border);
 }
 .stat-row:last-child { border-bottom: none; }
 
@@ -148,7 +172,7 @@
 .progress-bar {
   flex: 1;
   height: 6px;
-  background: #f1f5f9;
+  background: var(--card-bg-2);
   border-radius: 999px;
   overflow: hidden;
   min-width: 60px;

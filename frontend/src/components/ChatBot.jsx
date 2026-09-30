@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import '../styles/ChatBot.css';
+import '../utils/chatbotScreenReader';
+
 
 export default function ChatBot() {
   const [messages, setMessages] = useState([]);
@@ -39,11 +41,14 @@ export default function ChatBot() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
+        // Add current visible screen context for better matching
         body: JSON.stringify({
           message: userMessage,
-          conversationId: 'default'
+          conversationId: 'default',
+          screenData: window.__chatbotExtractScreenData?.() || {},
         })
       });
+
 
 
       if (!response.ok) {
@@ -133,7 +138,7 @@ export default function ChatBot() {
       <div className="chatbot-messages">
         {messages.length === 0 && (
           <div className="chatbot-welcome">
-            <p style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b' }}>Hello! I'm your AI assistant.</p>
+            <p style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text)' }}>Hello! I'm your AI assistant.</p>
             <p>Ask me anything about:</p>
             <ul>
               <li>Products &amp; inventory</li>

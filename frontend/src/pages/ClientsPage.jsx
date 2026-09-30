@@ -1,20 +1,22 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { LuPlus, LuPencil, LuTrash2, LuClock, LuArchive, LuRefreshCw, LuKeyRound } from 'react-icons/lu';
+import { LuPlus, LuPencil, LuTrash2, LuClock, LuArchive, LuRefreshCw, LuKeyRound, LuCheck } from 'react-icons/lu';
 import { useDataStore } from '../stores/dataStore';
+import { useAuthStore } from '../stores/authStore';
 import { clientService } from '../services/api';
 import { clientPortalAdminService } from '../services/clientApi';
 import { useSortableTable, SortIcon, sortableThStyle } from '../hooks/useSortableTable';
 import '../styles/pages.css';
 
-const EMPTY = { company_name: '', address: '', region: '', email: '', phone: '', segment: 'PME', status: 'active' };
+const EMPTY = { company_name: '', address: '', region: '', email: '', phone: '', segment: 'PME', status: 'active', credit_limit: '', payment_terms: 'immediate' };
 const SEGMENTS = ['TPE', 'PME', 'Grande entreprise'];
 const REGIONS = ['Tunis', 'Sfax', 'Sousse', 'Bizerte', 'Nabeul', 'Monastir', 'Gabès', 'Gafsa', 'Autre'];
+const PAYMENT_TERMS_LABELS = { immediate: 'Immediate', net_15: 'Net 15', net_30: 'Net 30', net_60: 'Net 60' };
 
 export default function ClientsPage() {
   const {
     clients, fetchClients, clientsLoading,
     createClient, updateClient, deleteClient,
-    archiveClient, restoreClient,
+    archiveClient, restoreClient, approveClient,
   } = useDataStore();
 
   const [search, setSearch]           = useState('');
@@ -47,6 +49,7 @@ export default function ClientsPage() {
   const { sorted: sortedClients, sortKey: cSortKey, sortDir: cSortDir, onSort: onCSort } = useSortableTable(filtered, 'company_name', 'asc');
 
   const archivedCount = clients.filter(c => c.status === 'archived').length;
+  const pendingCount  = clients.filter(c => c.status === 'pending').length;
 
   const openCreate  = () => { setForm(EMPTY); setEditing(null); setError(''); setShowModal(true); };
   const openEdit    = (c) => {
@@ -58,6 +61,8 @@ export default function ClientsPage() {
       phone:        c.phone        || '',
       segment:      c.segment      || 'PME',
       status:       c.status       || 'active',
+      credit_limit: c.credit_limit ?? '',
+      payment_terms: c.payment_terms || 'immediate',
     });
     setEditing(c.id);
     setError('');
@@ -93,6 +98,15 @@ export default function ClientsPage() {
       setSuccess(`"${name}" restored successfully`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) { setError(err.response?.data?.error || 'Error during restoration'); }
+  };
+
+  const handleApprove = async (id, name) => {
+    if (!window.confirm(`Approve "${name}"?\nThey'll be able to sign in to the Client Portal immediately.`)) return;
+    try {
+      await approveClient(id);
+      setSuccess(`"${name}" approved — they can now sign in`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) { setError(err.response?.data?.message || 'Error during approval'); }
   };
 
   const handleDelete = async (id, name) => {
@@ -148,14 +162,28 @@ export default function ClientsPage() {
     }
   };
 
-  const statusLabel = { active: 'Active', inactive: 'Inactive', archived: 'Archived' };
-  const statusBadge = { active: 'badge-active', inactive: 'badge-inactive', archived: 'badge-cancelled' };
+  const statusLabel = { active: 'Active', inactive: 'Inactive', archived: 'Archived', pending: 'Pending Approval' };
+  const statusBadge = { active: 'badge-active', inactive: 'badge-inactive', archived: 'badge-cancelled', pending: 'badge-pending' };
+  const { user } = useAuthStore();
+  const isAdminOrManager = user?.role_name === 'Administrator' || user?.role_name === 'Manager';
+  const isAdmin = user?.role_name === 'Administrator';
 
   return (
     <div className="page">
       <div className="page-header">
         <h1>Clients <span className="count">{clients.filter(c => c.status !== 'archived').length}</span></h1>
-        <button className="btn btn-primary" onClick={openCreate}><LuPlus size={14} /> New Client</button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {isAdminOrManager && pendingCount > 0 && (
+            <button
+              className={`btn ${filterStatus === 'pending' ? 'btn-warning' : 'btn-ghost'}`}
+              onClick={() => setFilterStatus(filterStatus === 'pending' ? '' : 'pending')}
+              title="Clients awaiting approval"
+            >
+              🕓 {pendingCount} pending approval
+            </button>
+          )}
+          {isAdminOrManager && <button className="btn btn-primary" onClick={openCreate}><LuPlus size={14} /> New Client</button>}
+        </div>
       </div>
 
       {success && <div className="alert alert-success">✅ {success}</div>}
@@ -175,6 +203,7 @@ export default function ClientsPage() {
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+          <option value="pending">Pending Approval {pendingCount > 0 ? `(${pendingCount})` : ''}</option>
           <option value="archived">Archived {archivedCount > 0 ? `(${archivedCount})` : ''}</option>
         </select>
       </div>
@@ -188,6 +217,18 @@ export default function ClientsPage() {
         }}>
           <LuArchive size={14} />
           <span>You are viewing archived clients. Click <strong>Restore</strong> to reactivate them.</span>
+        </div>
+      )}
+
+      {/* Pending banner */}
+      {filterStatus === 'pending' && pendingCount > 0 && (
+        <div style={{
+          background: '#fef9c3', border: '1px solid #fde047', borderRadius: '10px',
+          padding: '0.65rem 1rem', marginBottom: '0.75rem',
+          display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: '#854d0e',
+        }}>
+          🕓
+          <span>These clients self-registered and are awaiting review. Click <strong>Approve</strong> to grant them portal access.</span>
         </div>
       )}
 
@@ -206,6 +247,7 @@ export default function ClientsPage() {
                 <th style={sortableThStyle} onClick={() => onCSort('email')}>Email<SortIcon col="email" sortKey={cSortKey} sortDir={cSortDir} /></th>
                 <th>Phone</th>
                 <th style={sortableThStyle} onClick={() => onCSort('segment')}>Segment<SortIcon col="segment" sortKey={cSortKey} sortDir={cSortDir} /></th>
+                <th>Credit</th>
                 <th style={sortableThStyle} onClick={() => onCSort('status')}>Status<SortIcon col="status" sortKey={cSortKey} sortDir={cSortDir} /></th>
                 <th>Actions</th>
               </tr>
@@ -215,77 +257,72 @@ export default function ClientsPage() {
                 <tr key={c.id} style={{ opacity: c.status === 'archived' ? 0.65 : 1 }}>
                   <td style={{ color: 'var(--text-muted)' }}>{c.id}</td>
                   <td>
-                    <strong>{c.company_name}</strong>
+                    <strong data-chatbot="client-name">{c.company_name}</strong>
                     {c.status === 'archived' && (
                       <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', color: '#92400e', background: '#fef3c7', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
                         archived
                       </span>
                     )}
                   </td>
-                  <td style={{ color: 'var(--text-muted)' }}>{c.region || '—'}</td>
+                  <td data-chatbot="client-region" style={{ color: 'var(--text-muted)' }}>{c.region || '—'}</td>
                   <td style={{ color: 'var(--text-muted)' }}>{c.email || '—'}</td>
                   <td style={{ color: 'var(--text-muted)' }}>{c.phone || '—'}</td>
-                  <td><span className="badge badge-shipped">{c.segment || '—'}</span></td>
+                  <td><span data-chatbot="client-segment" className="badge badge-shipped">{c.segment || '—'}</span></td>
+                  <td style={{ fontSize: '0.8rem' }}>
+                    {c.credit_limit != null ? (
+                      <>
+                        <strong>{parseFloat(c.credit_limit).toFixed(0)} TND</strong>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{PAYMENT_TERMS_LABELS[c.payment_terms] || c.payment_terms}</div>
+                      </>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)' }}>—</span>
+                    )}
+                  </td>
                   <td>
-                    <span className={`badge ${statusBadge[c.status] || 'badge-inactive'}`}>
+                    <span data-chatbot="client-status" className={`badge ${statusBadge[c.status] || 'badge-inactive'}`}>
                       {statusLabel[c.status] || c.status}
                     </span>
                   </td>
                   <td>
                     <div className="actions">
+                      {isAdminOrManager && c.status === 'pending' && (
+                        <button className="btn btn-success btn-icon" title="Approve — grant portal access"
+                          onClick={() => handleApprove(c.id, c.company_name)}>
+                          <LuCheck size={14} />
+                        </button>
+                      )}
                       {c.status !== 'archived' && (
-                        <button
-                          className="btn btn-ghost btn-icon"
-                          title="Order history"
-                          onClick={() => handleViewHistory(c)}
-                        >
+                        <button className="btn btn-ghost btn-icon" title="Order history" onClick={() => handleViewHistory(c)}>
                           <LuClock size={14} />
                         </button>
                       )}
-                      {c.status !== 'archived' && (
-                        <button
-                          className="btn btn-ghost btn-icon"
-                          title="Set portal access / password"
+                      {isAdminOrManager && c.status !== 'archived' && (
+                        <button className="btn btn-ghost btn-icon" title="Set portal access / password"
                           onClick={() => { setPortalModal(c); setPortalPassword(''); setError(''); setShowPortalPassword(false); }}
-                          style={{ color: '#4f46e5' }}
-                        >
+                          style={{ color: '#0d9488' }}>
                           <LuKeyRound size={14} />
                         </button>
                       )}
-                      {c.status !== 'archived' && (
-                        <button
-                          className="btn btn-warning btn-icon"
-                          title="Edit"
-                          onClick={() => openEdit(c)}
-                        >
+                      {isAdminOrManager && c.status !== 'archived' && (
+                        <button className="btn btn-warning btn-icon" title="Edit" onClick={() => openEdit(c)}>
                           <LuPencil size={14} />
                         </button>
                       )}
-                      {c.status !== 'archived' ? (
-                        <button
-                          className="btn btn-ghost btn-icon"
-                          title="Archive this client"
-                          onClick={() => handleArchive(c.id, c.company_name)}
-                          style={{ color: '#92400e' }}
-                        >
+                      {isAdminOrManager && c.status !== 'archived' && (
+                        <button className="btn btn-ghost btn-icon" title="Archive this client"
+                          onClick={() => handleArchive(c.id, c.company_name)} style={{ color: '#92400e' }}>
                           <LuArchive size={14} />
                         </button>
-                      ) : (
-                        <button
-                          className="btn btn-ghost btn-icon"
-                          title="Restore this client"
-                          onClick={() => handleRestore(c.id, c.company_name)}
-                          style={{ color: '#16a34a' }}
-                        >
+                      )}
+                      {isAdminOrManager && c.status === 'archived' && (
+                        <button className="btn btn-ghost btn-icon" title="Restore this client"
+                          onClick={() => handleRestore(c.id, c.company_name)} style={{ color: '#16a34a' }}>
                           <LuRefreshCw size={14} />
                         </button>
                       )}
-                      {c.status === 'archived' && (
-                        <button
-                          className="btn btn-danger btn-icon"
-                          title="Delete permanently"
-                          onClick={() => handleDelete(c.id, c.company_name)}
-                        >
+                      {isAdmin && c.status === 'archived' && (
+                        <button className="btn btn-danger btn-icon" title="Delete permanently"
+                          onClick={() => handleDelete(c.id, c.company_name)}>
                           <LuTrash2 size={14} />
                         </button>
                       )}
@@ -348,6 +385,25 @@ export default function ClientsPage() {
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Credit Limit (TND)</label>
+                  <input
+                    name="credit_limit" type="number" min="0" step="0.01"
+                    value={form.credit_limit} onChange={handleChange}
+                    placeholder="No limit — must pay immediately"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Payment Terms</label>
+                  <select name="payment_terms" value={form.payment_terms} onChange={handleChange}>
+                    {Object.entries(PAYMENT_TERMS_LABELS).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block', marginTop: '-0.5rem', marginBottom: '0.75rem' }}>
+                Leave credit limit empty for no credit extended (order total is not checked against a limit). Payment terms set how many days after an order it becomes due.
+              </small>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={closeModal}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={clientsLoading}>
@@ -376,7 +432,7 @@ export default function ClientsPage() {
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
                   {[
-                    { label: 'Total Orders', value: historyModal.orders.length, color: '#4f46e5' },
+                    { label: 'Total Orders', value: historyModal.orders.length, color: '#0d9488' },
                     {
                       label: 'Total Revenue (inc. tax)',
                       value: historyModal.orders
@@ -437,7 +493,7 @@ export default function ClientsPage() {
             </div>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
               Set a password to allow <strong>{portalModal.company_name}</strong> to log in at{' '}
-              <code style={{ background: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem' }}>/client/login</code>{' '}
+              <code style={{ background: 'var(--card-bg-2)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem' }}>/client/login</code>{' '}
               and place orders directly.
             </p>
             {error && <div className="alert alert-error">{error}</div>}
@@ -458,7 +514,7 @@ export default function ClientsPage() {
                   style={{
                     position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#9ca3af', fontSize: '1rem', padding: 0, lineHeight: 1,
+                    color: 'var(--text-faint)', fontSize: '1rem', padding: 0, lineHeight: 1,
                   }}
                   title={showPortalPassword ? 'Hide password' : 'Show password'}
                 >

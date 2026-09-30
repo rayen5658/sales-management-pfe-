@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { LuPlus, LuPencil, LuTrash2, LuLock, LuToggleLeft, LuToggleRight } from 'react-icons/lu';
+import { LuPlus, LuPencil, LuTrash2, LuLock, LuToggleLeft, LuToggleRight, LuEye, LuEyeOff } from 'react-icons/lu';
 import { userService, roleService } from '../services/api';
 import { useSortableTable, SortIcon, sortableThStyle } from '../hooks/useSortableTable';
 import '../styles/pages.css';
@@ -18,6 +18,8 @@ export default function UsersPage() {
   const [newPwd, setNewPwd] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showCreatePwd, setShowCreatePwd] = useState(false);
+  const [showResetPwd, setShowResetPwd] = useState(false);
 
   const load = async () => {
     try {
@@ -44,7 +46,7 @@ export default function UsersPage() {
 
   const openCreate = () => { setForm(EMPTY_USER); setEditing(null); setError(''); setShowModal(true); };
   const openEdit = (u) => { setForm({ firstname: u.firstname, lastname: u.lastname, email: u.email, password: '', role_id: u.role_id, status: u.status }); setEditing(u.id); setError(''); setShowModal(true); };
-  const closeModal = () => { setShowModal(false); setError(''); };
+  const closeModal = () => { setShowModal(false); setError(''); setShowCreatePwd(false); };
   const handleChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
   const handleSubmit = async e => {
@@ -93,6 +95,7 @@ export default function UsersPage() {
       setSuccess('Password reset');
       setShowPwdModal(null);
       setNewPwd('');
+      setShowResetPwd(false);
       setTimeout(() => setSuccess(''), 3000);
     } catch { setError('Error during reset'); }
   };
@@ -172,7 +175,29 @@ export default function UsersPage() {
                 <div className="form-group"><label>Last Name *</label><input name="lastname" value={form.lastname} onChange={handleChange} placeholder="Last name" /></div>
               </div>
               <div className="form-group"><label>Email *</label><input name="email" type="email" value={form.email} onChange={handleChange} placeholder="email@example.com" /></div>
-              {!editing && <div className="form-group"><label>Password *</label><input name="password" type="password" value={form.password} onChange={handleChange} placeholder="Min 6 characters" /></div>}
+              {!editing && (
+                <div className="form-group">
+                  <label>Password *</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      name="password"
+                      type={showCreatePwd ? 'text' : 'password'}
+                      value={form.password}
+                      onChange={handleChange}
+                      placeholder="Min 6 characters"
+                      style={{ paddingRight: '2.5rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCreatePwd(v => !v)}
+                      style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', display: 'flex', padding: 0 }}
+                      title={showCreatePwd ? 'Hide password' : 'Show password'}
+                    >
+                      {showCreatePwd ? <LuEyeOff size={16} /> : <LuEye size={16} />}
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="form-row">
                 <div className="form-group">
                   <label>Role *</label>
@@ -209,7 +234,23 @@ export default function UsersPage() {
             {error && <div className="alert alert-error">{error}</div>}
             <div className="form-group">
               <label>New Password</label>
-              <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="Min 6 characters" />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showResetPwd ? 'text' : 'password'}
+                  value={newPwd}
+                  onChange={e => setNewPwd(e.target.value)}
+                  placeholder="Min 6 characters"
+                  style={{ paddingRight: '2.5rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowResetPwd(v => !v)}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', display: 'flex', padding: 0 }}
+                  title={showResetPwd ? 'Hide password' : 'Show password'}
+                >
+                  {showResetPwd ? <LuEyeOff size={16} /> : <LuEye size={16} />}
+                </button>
+              </div>
             </div>
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={() => setShowPwdModal(null)}>Cancel</button>

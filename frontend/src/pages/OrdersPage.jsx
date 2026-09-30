@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react';
-import { LuPlus, LuEye, LuCircleX, LuRefreshCw, LuFileText, LuPencil, LuClock, LuTruck, LuX, LuPackage, LuUser } from 'react-icons/lu';
+import { LuPlus, LuEye, LuCircleX, LuRefreshCw, LuFileText, LuPencil, LuClock, LuX, LuPackage, LuBanknote } from 'react-icons/lu';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { orderService } from '../services/api';
@@ -11,6 +11,8 @@ import '../styles/pages.css';
 
 const STATUS = { pending: 'Pending', confirmed: 'Confirmed', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled' };
 const STATUS_FLOW = ['pending', 'confirmed', 'shipped', 'delivered'];
+const PAYMENT_STATUS = { paid: 'Paid', pending: 'Pending', failed: 'Failed', unpaid: 'Unpaid', refunded: 'Refunded' };
+const PAYMENT_METHOD = { konnect: 'Card', bank_transfer: 'Bank transfer', cash: 'Cash', other: 'Other' };
 const PAGE_SIZE = 20;
 
 const fmt = v => parseFloat(v || 0).toFixed(2) + ' TND';
@@ -18,6 +20,8 @@ const fmt = v => parseFloat(v || 0).toFixed(2) + ' TND';
 export default function OrdersPage() {
   const { orders, fetchOrders, ordersLoading, ordersPagination, createOrder, cancelOrder, clients, fetchClients, products, fetchProducts } = useDataStore();
   const { user } = useAuthStore();
+  const isAdminOrManager = user?.role_name === 'Administrator' || user?.role_name === 'Manager';
+  const isSalesAgent = user?.role_name === 'Sales Agent';
   const [pdfLoading, setPdfLoading] = useState(null);
 
   // ── Server-side filters ────────────────────────────────────────────────────
@@ -28,6 +32,7 @@ export default function OrdersPage() {
   const [dateTo, setDateTo]             = useState('');
   const [minAmount, setMinAmount]       = useState('');
   const [maxAmount, setMaxAmount]       = useState('');
+  const [overdueOnly, setOverdueOnly]   = useState(false);
   const [filtersOpen, setFiltersOpen]   = useState(false);
   const [page, setPage]                 = useState(1);
 
@@ -53,6 +58,12 @@ export default function OrdersPage() {
   const [shipLoading, setShipLoading]       = useState(false);
   const [shipResult, setShipResult]         = useState(null); // API response to display
 
+  // Mark as paid modal
+  const [markPaidModal, setMarkPaidModal]   = useState(null); // order object
+  const [markPaidMethod, setMarkPaidMethod] = useState('bank_transfer');
+  const [markPaidNote, setMarkPaidNote]     = useState('');
+  const [markPaidLoading, setMarkPaidLoading] = useState(false);
+
   // Create form
   const [selectedClient, setSelectedClient] = useState('');
   const [lines, setLines] = useState([{ product_id: '', quantity: 1 }]);
@@ -71,8 +82,9 @@ export default function OrdersPage() {
     if (dateTo)          params.date_to    = dateTo;
     if (minAmount)       params.min_amount = minAmount;
     if (maxAmount)       params.max_amount = maxAmount;
+    if (overdueOnly)     params.overdue    = 'true';
     return params;
-  }, [page, search, filterStatus, filterClient, dateFrom, dateTo, minAmount, maxAmount]);
+  }, [page, search, filterStatus, filterClient, dateFrom, dateTo, minAmount, maxAmount, overdueOnly]);
 
   const load = useCallback((p = page) => fetchOrders(buildParams(p)), [buildParams, fetchOrders, page]);
 
@@ -81,7 +93,7 @@ export default function OrdersPage() {
   const applyFilters = () => { setPage(1); fetchOrders(buildParams(1)); };
   const resetFilters = () => {
     setSearch(''); setFilterStatus(''); setFilterClient('');
-    setDateFrom(''); setDateTo(''); setMinAmount(''); setMaxAmount('');
+    setDateFrom(''); setDateTo(''); setMinAmount(''); setMaxAmount(''); setOverdueOnly(false);
     setPage(1);
     fetchOrders({ page: 1, limit: PAGE_SIZE });
   };
@@ -90,7 +102,7 @@ export default function OrdersPage() {
   const { sorted: sortedOrders, sortKey: oSortKey, sortDir: oSortDir, onSort: onOSort } =
     useSortableTable(orders, 'order_date', 'desc');
 
-  const hasActiveFilters = filterStatus || filterClient || dateFrom || dateTo || minAmount || maxAmount || search;
+  const hasActiveFilters = filterStatus || filterClient || dateFrom || dateTo || minAmount || maxAmount || search || overdueOnly;
 
   // Bulk selection
   const [selected, setSelected] = useState(new Set());
@@ -281,6 +293,23 @@ export default function OrdersPage() {
     }
   };
 
+  const handleMarkPaid = async () => {
+    if (!markPaidModal) return;
+    setMarkPaidLoading(true);
+    try {
+      await orderService.markPaid(markPaidModal.id, { payment_method: markPaidMethod, payment_note: markPaidNote || undefined });
+      notifySuccess(`Order #${markPaidModal.id} marked as paid`);
+      setMarkPaidModal(null);
+      setMarkPaidNote('');
+      setMarkPaidMethod('bank_transfer');
+      load(page);
+    } catch (err) {
+      notifyError(err.response?.data?.message || 'Could not mark this order as paid');
+    } finally {
+      setMarkPaidLoading(false);
+    }
+  };
+
   const closeShipModal = () => {
     if (shipResult) {
       setSuccess(`Order #${shipModal.id} shipped via First Delivery — tracking: ${shipResult.tracking_number}`);
@@ -305,7 +334,7 @@ export default function OrdersPage() {
       {setupToasterGlobal()}
 
       <div className="page-header">
-        <h1>Orders <span className="count">{total}</span></h1>
+        <h1>Orders <span className="count" data-chatbot="orders-total">{total}</span></h1>
         <button className="btn btn-primary" onClick={() => { setShowCreate(true); setError(''); }}><LuPlus size={14} /> New Order</button>
       </div>
 
@@ -324,6 +353,20 @@ export default function OrdersPage() {
           {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <button
+          className={`btn ${overdueOnly ? 'btn-danger' : 'btn-ghost'}`}
+          onClick={() => {
+            const next = !overdueOnly;
+            setOverdueOnly(next);
+            setPage(1);
+            const params = buildParams(1);
+            if (next) params.overdue = 'true'; else delete params.overdue;
+            fetchOrders(params);
+          }}
+          title="Show only unpaid orders past their due date"
+        >
+          ⏰ Overdue{overdueOnly ? ' ✓' : ''}
+        </button>
+        <button
           className={`btn ${hasActiveFilters ? 'btn-primary' : 'btn-ghost'}`}
           onClick={() => setFiltersOpen(!filtersOpen)}
         >
@@ -337,7 +380,7 @@ export default function OrdersPage() {
 
       {/* Advanced filters panel */}
       {filtersOpen && (
-        <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '1rem', marginBottom: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+        <div style={{ background: 'var(--card-bg-2)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1rem', marginBottom: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>Client</label>
             <select value={filterClient} onChange={e => setFilterClient(e.target.value)}>
@@ -372,7 +415,7 @@ export default function OrdersPage() {
       )}
 
       {/* ── Bulk action toolbar ── */}
-      {selected.size > 0 && (
+      {isAdminOrManager && selected.size > 0 && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: '0.75rem',
           background: 'linear-gradient(135deg,#eff6ff,#dbeafe)',
@@ -415,7 +458,7 @@ export default function OrdersPage() {
               onClick={clearSelection}
               style={{
                 padding: '0.4rem 0.75rem', borderRadius: '7px',
-                border: '1.5px solid #bfdbfe', background: '#fff',
+                border: '1.5px solid #bfdbfe', background: 'var(--card-bg)',
                 color: '#374151', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer',
               }}
             >
@@ -451,12 +494,20 @@ export default function OrdersPage() {
                 <th>Tax</th>
                 <th style={sortableThStyle} onClick={() => onOSort('amount_ttc')}>Total (inc. tax)<SortIcon col="amount_ttc" sortKey={oSortKey} sortDir={oSortDir} /></th>
                 <th style={sortableThStyle} onClick={() => onOSort('status')}>Status<SortIcon col="status" sortKey={oSortKey} sortDir={oSortDir} /></th>
+                <th>Payment</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {sortedOrders.map(o => (
-                <tr key={o.id} style={{ background: selected.has(o.id) ? '#eff6ff' : undefined }}>
+              {sortedOrders.map((o, rowIndex) => (
+                <tr
+                  key={o.id}
+                  style={{
+                    background: selected.has(o.id) ? '#eff6ff' : undefined,
+                    animation: 'rowSlideIn 0.32s cubic-bezier(0.22,1,0.36,1) both',
+                    animationDelay: `${Math.min(rowIndex, 12) * 0.03}s`,
+                  }}
+                >
                   <td style={{ textAlign: 'center' }}>
                     <input
                       type="checkbox"
@@ -465,13 +516,23 @@ export default function OrdersPage() {
                       style={{ cursor: 'pointer', width: 15, height: 15 }}
                     />
                   </td>
-                  <td><strong>#{o.id}</strong></td>
-                  <td>{o.client_name || '—'}{o.notes?.includes('Contact:') && <span title="Portal order — has delivery info" style={{ marginLeft:'0.4rem', background:'#dcfce7', color:'#15803d', fontSize:'0.62rem', fontWeight:700, padding:'0.1rem 0.35rem', borderRadius:'4px', verticalAlign:'middle' }}>PORTAL</span>}</td>
-                  <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{o.order_date ? new Date(o.order_date).toLocaleDateString('en-GB') : '—'}</td>
-                  <td>{fmt(o.amount_ht)}</td>
+                  <td><strong data-chatbot="order-id">#{o.id}</strong></td>
+                  <td><span data-chatbot="order-client">{o.client_name || '—'}</span>{o.notes?.includes('Contact:') && <span title="Portal order — has delivery info" style={{ marginLeft:'0.4rem', background:'#dcfce7', color:'#15803d', fontSize:'0.62rem', fontWeight:700, padding:'0.1rem 0.35rem', borderRadius:'4px', verticalAlign:'middle' }}>PORTAL</span>}</td>
+                  <td data-chatbot="order-date" style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{o.order_date ? new Date(o.order_date).toLocaleDateString('en-GB') : '—'}</td>
+                  <td data-chatbot="order-amount-ht">{fmt(o.amount_ht)}</td>
                   <td style={{ color: 'var(--text-muted)' }}>{fmt(o.tva)}</td>
-                  <td><strong style={{ color: 'var(--primary)' }}>{fmt(o.amount_ttc)}</strong></td>
-                  <td><span className={`badge badge-${o.status}`}>{STATUS[o.status] || o.status}</span></td>
+                  <td><strong data-chatbot="order-total" style={{ color: 'var(--primary)' }}>{fmt(o.amount_ttc)}</strong></td>
+                  <td><span data-chatbot="order-status" className={`badge badge-${o.status}`}>{STATUS[o.status] || o.status}</span></td>
+                  <td>
+                    <span className={`badge badge-${o.payment_status || 'unpaid'}`}>{PAYMENT_STATUS[o.payment_status] || 'Unpaid'}</span>
+                    {o.payment_method && <div style={{ fontSize: '0.68rem', color: 'var(--text-faint)', marginTop: '0.2rem' }}>{PAYMENT_METHOD[o.payment_method] || o.payment_method}</div>}
+                    {o.is_overdue && (
+                      <div title={`Was due ${o.due_date ? new Date(o.due_date).toLocaleDateString('en-GB') : ''}`}
+                        style={{ marginTop: '0.25rem', fontSize: '0.68rem', fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '0.1rem 0.4rem', borderRadius: '4px', display: 'inline-block' }}>
+                        ⏰ Overdue
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <div className="actions">
                       <button className="btn btn-ghost btn-icon" title="View details" onClick={() => openDetail(o)}><LuEye size={14} /></button>
@@ -484,10 +545,10 @@ export default function OrdersPage() {
                       >
                         {pdfLoading === o.id ? <LuRefreshCw size={14} className="spin" /> : <LuFileText size={14} />}
                       </button>
-                      {(o.status === 'pending' || o.status === 'confirmed') && (
+                      {(o.status === 'pending' || o.status === 'confirmed') && (isAdminOrManager || (isSalesAgent && o.status === 'pending' && o.user_id === user?.id)) && (
                         <button className="btn btn-warning btn-icon" title="Edit order" onClick={() => openEdit(o)}><LuPencil size={14} /></button>
                       )}
-                      {o.status === 'confirmed' && (
+                      {isAdminOrManager && o.status === 'confirmed' && (
                         <button
                           className="btn btn-icon"
                           title="Hand to First Delivery"
@@ -497,13 +558,23 @@ export default function OrdersPage() {
                           Ship
                         </button>
                       )}
-                      {o.status !== 'cancelled' && o.status !== 'delivered' && (
+                      {isAdminOrManager && o.status !== 'cancelled' && o.status !== 'delivered' && (
                         <button className="btn btn-success btn-icon" title="Advance status"
                           onClick={() => { const next = STATUS_FLOW[STATUS_FLOW.indexOf(o.status) + 1]; if (next) handleStatusUpdate(o.id, next); }}>
                           <LuRefreshCw size={14} />
                         </button>
                       )}
-                      {o.status !== 'cancelled' && (
+                      {isAdminOrManager && o.status !== 'cancelled' && o.payment_status !== 'paid' && (
+                        <button
+                          className="btn btn-icon"
+                          title="Mark as paid"
+                          onClick={() => { setMarkPaidModal(o); setMarkPaidMethod(o.payment_method === 'konnect' ? 'bank_transfer' : (o.payment_method || 'bank_transfer')); setMarkPaidNote(''); }}
+                          style={{ background: '#f59e0b', color: '#fff', border: 'none' }}
+                        >
+                          <LuBanknote size={14} />
+                        </button>
+                      )}
+                      {isAdminOrManager && o.status !== 'cancelled' && (
                         <button className="btn btn-danger btn-icon" title="Cancel" onClick={() => { setCancelModal(o.id); setError(''); }}><LuCircleX size={14} /></button>
                       )}
                     </div>
@@ -542,7 +613,7 @@ export default function OrdersPage() {
                   <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
                     <div style={{ position: 'relative' }}>
                       {selProd && (
-                        <div style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', width: 28, height: 28, borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
+                        <div style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', width: 28, height: 28, borderRadius: '6px', background: 'var(--card-bg-2)', border: '1px solid var(--border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
                           {selProd.image
                             ? <img src={selProd.image} alt={selProd.name} onError={e => { e.currentTarget.style.display='none'; }} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                             : <LuPackage size={18} style={{ color: "#cbd5e1" }} />
@@ -552,7 +623,7 @@ export default function OrdersPage() {
                       <select
                         value={line.product_id}
                         onChange={e => updateLine(i, 'product_id', e.target.value)}
-                        style={{ width: '100%', padding: `0.55rem 0.75rem 0.55rem ${selProd ? '2.4rem' : '0.75rem'}`, border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem', background: '#fff' }}
+                        style={{ width: '100%', padding: `0.55rem 0.75rem 0.55rem ${selProd ? '2.4rem' : '0.75rem'}`, border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem', background: 'var(--card-bg)' }}
                       >
                         <option value="">-- Product --</option>
                         {products.map(p => <option key={p.id} value={p.id}>{p.name} — stock: {p.stock} — {parseFloat(p.unit_price).toFixed(2)} TND</option>)}
@@ -598,13 +669,16 @@ export default function OrdersPage() {
                 ['Sales Rep',         `${showDetail.user_firstname || ''} ${showDetail.user_lastname || ''}`.trim() || '—'],
                 ['Date',              showDetail.order_date ? new Date(showDetail.order_date).toLocaleDateString('en-GB') : '—'],
                 ['Status',            <span className={`badge badge-${showDetail.status}`}>{STATUS[showDetail.status]}</span>],
+                ...(showDetail.due_date ? [['Due Date', showDetail.is_overdue
+                  ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⏰ {new Date(showDetail.due_date).toLocaleDateString('en-GB')} (overdue)</span>
+                  : new Date(showDetail.due_date).toLocaleDateString('en-GB')]] : []),
                 ...(showDetail.delivery_company ? [['Delivery',  <span style={{ color: '#16a34a', fontWeight: 700 }}>🚚 {showDetail.delivery_company}</span>]] : []),
                 ...(showDetail.tracking_number  ? [['Tracking #', <code style={{ background: '#f0fdf4', color: '#15803d', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.82rem' }}>{showDetail.tracking_number}</code>]] : []),
                 ...(showDetail.cancel_reason    ? [['Cancel reason', showDetail.cancel_reason]] : []),
               ].map(([label, value], i) => (
-                <div key={i} style={{ background: '#f8fafc', borderRadius: '8px', padding: '0.6rem 0.85rem', border: '1px solid #e2e8f0' }}>
-                  <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.2rem' }}>{label}</p>
-                  <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{value}</p>
+                <div key={i} style={{ background: 'var(--card-bg-2)', borderRadius: '8px', padding: '0.6rem 0.85rem', border: '1px solid var(--border)' }}>
+                  <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.2rem' }}>{label}</p>
+                  <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: 'var(--text)' }}>{value}</p>
                 </div>
               ))}
             </div>
@@ -629,7 +703,7 @@ export default function OrdersPage() {
               if (fields.length === 0) return null;
               return (
                 <div style={{ marginBottom: '1.25rem' }}>
-                  <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
+                  <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
                     Delivery Information
                   </p>
                   <div style={{ background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.85rem 1rem' }}>
@@ -648,20 +722,20 @@ export default function OrdersPage() {
 
             {/* Order lines with product images */}
             <div style={{ marginBottom: '1rem' }}>
-              <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.65rem' }}>Products ordered</p>
+              <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.65rem' }}>Products ordered</p>
               {detailLoading ? (
-                <div style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>Loading...</div>
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-faint)', fontSize: '0.875rem' }}>Loading...</div>
               ) : detailLines.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.875rem' }}>No lines found</div>
+                <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-faint)', fontSize: '0.875rem' }}>No lines found</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {detailLines.map((line, i) => {
                     const prod = products.find(p => String(p.id) === String(line.product_id));
                     const subtotal = parseFloat(line.unit_price || 0) * parseInt(line.quantity || 0);
                     return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #e2e8f0' }}>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--card-bg-2)', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid var(--border)' }}>
                         {/* Product image */}
-                        <div style={{ width: 48, height: 48, borderRadius: '8px', background: '#fff', border: '1px solid #e2e8f0', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: 48, height: 48, borderRadius: '8px', background: 'var(--card-bg)', border: '1px solid var(--border)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {prod?.image
                             ? <img src={prod.image} alt={prod.name} onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                             : null}
@@ -669,16 +743,16 @@ export default function OrdersPage() {
                         </div>
                         {/* Name + ref */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ margin: 0, fontWeight: 700, fontSize: '0.875rem', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <p style={{ margin: 0, fontWeight: 700, fontSize: '0.875rem', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {line.product_name || prod?.name || '—'}
                           </p>
-                          <code style={{ fontSize: '0.72rem', color: '#64748b', background: '#e2e8f0', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                          <code style={{ fontSize: '0.72rem', color: 'var(--text-muted)', background: 'var(--border)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
                             {line.reference || prod?.reference || '—'}
                           </code>
                         </div>
                         {/* Qty + price */}
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>{line.quantity} × {parseFloat(line.unit_price || 0).toFixed(2)} TND</p>
+                          <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>{line.quantity} × {parseFloat(line.unit_price || 0).toFixed(2)} TND</p>
                           <p style={{ margin: 0, fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem' }}>{subtotal.toFixed(2)} TND</p>
                         </div>
                       </div>
@@ -689,16 +763,16 @@ export default function OrdersPage() {
             </div>
 
             {/* Totals */}
-            <div style={{ background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', borderRadius: '10px', padding: '0.85rem 1rem', border: '1px solid #e2e8f0' }}>
+            <div style={{ background: 'linear-gradient(135deg, var(--card-bg-2), var(--card-bg-2))', borderRadius: '10px', padding: '0.85rem 1rem', border: '1px solid var(--border)' }}>
               {[
                 ['Subtotal (ex. tax)', fmt(showDetail.amount_ht), false],
                 ['Tax (19%)',          fmt(showDetail.tva),        false],
               ].map(([label, val]) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#64748b', marginBottom: '0.35rem' }}>
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
                   <span>{label}</span><span>{val}</span>
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0', fontWeight: 800, fontSize: '1rem', color: '#1e293b' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid var(--border)', fontWeight: 800, fontSize: '1rem', color: 'var(--text)' }}>
                 <span>Total (inc. tax)</span>
                 <span style={{ color: 'var(--primary)' }}>{fmt(showDetail.amount_ttc)}</span>
               </div>
@@ -724,12 +798,49 @@ export default function OrdersPage() {
             </div>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.875rem' }}>Product stock will be automatically restored.</p>
             <div className="form-group">
-              <label>Cancellation Reason</label>
-              <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Raison de l'annulation..." />
+              <label>Cancellation Reason *</label>
+              <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Reason for cancellation (required)..." />
             </div>
             <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setCancelModal(null)}>Retour</button>
-              <button className="btn btn-danger" onClick={() => setCancelConfirm({ id: cancelModal, reason: cancelReason })}>Confirmer l'annulation</button>
+              <button className="btn btn-ghost" onClick={() => setCancelModal(null)}>Back</button>
+              <button
+                className="btn btn-danger"
+                disabled={!cancelReason.trim()}
+                onClick={() => cancelReason.trim() && setCancelConfirm({ id: cancelModal, reason: cancelReason })}
+              >Confirm cancellation</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MARK AS PAID MODAL */}
+      {markPaidModal && (
+        <div className="modal-overlay" onClick={() => setMarkPaidModal(null)}>
+          <div className="modal" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Mark Order #{markPaidModal.id} as Paid</h2>
+              <button className="modal-close" onClick={() => setMarkPaidModal(null)}><LuX size={15} /></button>
+            </div>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.875rem' }}>
+              Use this once you've confirmed the money actually arrived (e.g. checked your bank account for a transfer). This doesn't move any money — it just records that payment was received.
+            </p>
+            <div className="form-group">
+              <label>Received via</label>
+              <select value={markPaidMethod} onChange={e => setMarkPaidMethod(e.target.value)}>
+                <option value="bank_transfer">Bank transfer</option>
+                <option value="cash">Cash</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Note <span style={{ color: 'var(--text-faint)', fontWeight: 400 }}>(optional)</span></label>
+              <textarea value={markPaidNote} onChange={e => setMarkPaidNote(e.target.value)} placeholder="e.g. Transfer ref BIAT-48213" rows={2} />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setMarkPaidModal(null)}>Cancel</button>
+              <button className="btn btn-primary" disabled={markPaidLoading} onClick={handleMarkPaid}>
+                {markPaidLoading ? 'Saving…' : 'Confirm — mark as paid'}
+              </button>
             </div>
           </div>
         </div>
@@ -761,7 +872,7 @@ export default function OrdersPage() {
                   <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
                     <div style={{ position: 'relative' }}>
                       {selProd && (
-                        <div style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', width: 28, height: 28, borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
+                        <div style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', width: 28, height: 28, borderRadius: '6px', background: 'var(--card-bg-2)', border: '1px solid var(--border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
                           {selProd.image
                             ? <img src={selProd.image} alt={selProd.name} onError={e => { e.currentTarget.style.display='none'; }} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                             : <LuPackage size={18} style={{ color: "#cbd5e1" }} />
@@ -771,7 +882,7 @@ export default function OrdersPage() {
                       <select
                         value={line.product_id}
                         onChange={e => setEditLines(l => l.map((x, idx) => idx === i ? { ...x, product_id: e.target.value } : x))}
-                        style={{ width: '100%', padding: `0.55rem 0.75rem 0.55rem ${selProd ? '2.4rem' : '0.75rem'}`, border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem', background: '#fff' }}
+                        style={{ width: '100%', padding: `0.55rem 0.75rem 0.55rem ${selProd ? '2.4rem' : '0.75rem'}`, border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '0.875rem', background: 'var(--card-bg)' }}
                       >
                         <option value="">-- Product --</option>
                         {products.map(p => <option key={p.id} value={p.id}>{p.name} — stock: {p.stock} — {parseFloat(p.unit_price).toFixed(2)} TND</option>)}
@@ -832,7 +943,7 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
+                <div style={{ background: 'var(--card-bg-2)', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
                   {[
                     ['Order', `#${shipModal.id}`],
                     ['Client', shipModal.client_name || '—'],
@@ -902,13 +1013,13 @@ export default function OrdersPage() {
                 </div>
 
                 {/* API response details */}
-                <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '1rem', border: '1px solid var(--border)', marginBottom: '1rem' }}>
+                <div style={{ background: 'var(--card-bg-2)', borderRadius: '12px', padding: '1rem', border: '1px solid var(--border)', marginBottom: '1rem' }}>
                   <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>
                     First Delivery API Response
                   </div>
 
                   {/* Tracking number — highlighted */}
-                  <div style={{ background: '#fff', border: '2px solid #16a34a', borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ background: 'var(--card-bg)', border: '2px solid #16a34a', borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>TRACKING NUMBER</div>
                       <div style={{ fontWeight: 900, fontSize: '1.1rem', color: '#15803d', letterSpacing: '0.05em' }}>{shipResult.tracking_number}</div>
@@ -966,7 +1077,7 @@ export default function OrdersPage() {
                 {/* Summary strip */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1.5rem' }}>
                   {[
-                    { label: 'Client',          value: trackingModal.order.client_name || '—',                          color: '#4f46e5' },
+                    { label: 'Client',          value: trackingModal.order.client_name || '—',                          color: '#0d9488' },
                     { label: 'Current Status',  value: STATUS[trackingModal.summary?.current_status] || trackingModal.order.status, color: '#10b981' },
                     { label: 'Status Changes',  value: trackingModal.summary?.total_changes ?? (trackingModal.history || []).length, color: '#f59e0b' },
                   ].map((item, i) => (
@@ -984,23 +1095,23 @@ export default function OrdersPage() {
                     const isCancelled = trackingModal.order.status === 'cancelled';
                     const isDone    = !isCancelled && i <= currentIdx;
                     const isCurrent = !isCancelled && i === currentIdx;
-                    const dotColor  = isCancelled && i === 0 ? '#ef4444' : isDone ? '#4f46e5' : '#e2e8f0';
-                    const lineColor = !isCancelled && i < currentIdx ? '#4f46e5' : '#e2e8f0';
+                    const dotColor  = isCancelled && i === 0 ? '#ef4444' : isDone ? '#0d9488' : 'var(--border)';
+                    const lineColor = !isCancelled && i < currentIdx ? '#0d9488' : 'var(--border)';
                     return (
                       <React.Fragment key={s}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
                           <div style={{
                             width: 28, height: 28, borderRadius: '50%',
                             background: dotColor,
-                            border: isCurrent ? '3px solid #4f46e5' : '2px solid ' + dotColor,
-                            boxShadow: isCurrent ? '0 0 0 4px rgba(79,70,229,0.15)' : 'none',
+                            border: isCurrent ? '3px solid #0d9488' : '2px solid ' + dotColor,
+                            boxShadow: isCurrent ? '0 0 0 4px rgba(13,148,136,0.15)' : 'none',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '0.7rem', color: isDone || (isCancelled && i === 0) ? '#fff' : '#94a3b8',
+                            fontSize: '0.7rem', color: isDone || (isCancelled && i === 0) ? '#fff' : 'var(--text-faint)',
                             fontWeight: 700, transition: 'all 0.2s',
                           }}>
                             {isDone || (isCancelled && i === 0) ? '✓' : i + 1}
                           </div>
-                          <span style={{ fontSize: '0.65rem', color: isDone ? '#4f46e5' : 'var(--text-muted)', fontWeight: isCurrent ? 700 : 400, whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '0.65rem', color: isDone ? '#0d9488' : 'var(--text-muted)', fontWeight: isCurrent ? 700 : 400, whiteSpace: 'nowrap' }}>
                             {STATUS[s]}
                           </span>
                         </div>
@@ -1031,7 +1142,7 @@ export default function OrdersPage() {
                 ) : (
                   <div style={{ position: 'relative', paddingLeft: '1.5rem' }}>
                     {/* Vertical line */}
-                    <div style={{ position: 'absolute', left: '0.6rem', top: 0, bottom: 0, width: 2, background: '#e2e8f0', borderRadius: 2 }} />
+                    <div style={{ position: 'absolute', left: '0.6rem', top: 0, bottom: 0, width: 2, background: 'var(--border)', borderRadius: 2 }} />
 
                     {(trackingModal.history || []).map((entry, i) => {
                       const statusColors = {
@@ -1049,10 +1160,10 @@ export default function OrdersPage() {
                           <div style={{
                             position: 'absolute', left: '-0.95rem', top: '0.2rem',
                             width: 12, height: 12, borderRadius: '50%',
-                            background: sc.color, border: '2px solid #fff',
+                            background: sc.color, border: '2px solid var(--card-bg)',
                             boxShadow: '0 0 0 2px ' + sc.color + '40',
                           }} />
-                          <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.75rem 1rem', border: '1px solid var(--border)' }}>
+                          <div style={{ background: 'var(--card-bg-2)', borderRadius: '10px', padding: '0.75rem 1rem', border: '1px solid var(--border)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 {entry.old_status && (
@@ -1074,7 +1185,7 @@ export default function OrdersPage() {
                             {(entry.user_firstname || entry.user_lastname) && (
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
                                 {entry.user_firstname} {entry.user_lastname}
-                                {entry.user_email && <span style={{ color: '#94a3b8' }}> · {entry.user_email}</span>}
+                                {entry.user_email && <span style={{ color: 'var(--text-faint)' }}> · {entry.user_email}</span>}
                               </p>
                             )}
                             {entry.notes && (
@@ -1099,20 +1210,20 @@ export default function OrdersPage() {
                       {(trackingModal.lines || []).map((line, i) => {
                         const prod = products.find(p => String(p.id) === String(line.product_id));
                         return (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#f8fafc', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid #e2e8f0' }}>
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--card-bg-2)', borderRadius: '10px', padding: '0.65rem 0.85rem', border: '1px solid var(--border)' }}>
                             {/* Product thumbnail */}
-                            <div style={{ width: 44, height: 44, borderRadius: '8px', background: '#fff', border: '1px solid #e2e8f0', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: 44, height: 44, borderRadius: '8px', background: 'var(--card-bg)', border: '1px solid var(--border)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {prod?.image
                                 ? <img src={prod.image} alt={prod.name} onError={e => { e.currentTarget.style.display='none'; }} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                                 : <span style={{ fontSize: '1.2rem' }}>📦</span>
                               }
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ margin: 0, fontWeight: 700, fontSize: '0.85rem', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line.product_name || '—'}</p>
-                              <code style={{ fontSize: '0.72rem', color: '#64748b', background: '#f1f5f9', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>{line.reference || '—'}</code>
+                              <p style={{ margin: 0, fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line.product_name || '—'}</p>
+                              <code style={{ fontSize: '0.72rem', color: 'var(--text-muted)', background: 'var(--card-bg-2)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>{line.reference || '—'}</code>
                             </div>
                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>{line.quantity} × {parseFloat(line.unit_price || 0).toFixed(2)} TND</p>
+                              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>{line.quantity} × {parseFloat(line.unit_price || 0).toFixed(2)} TND</p>
                               <p style={{ margin: 0, fontWeight: 700, color: 'var(--primary)', fontSize: '0.9rem' }}>{(parseFloat(line.unit_price || 0) * parseInt(line.quantity || 0)).toFixed(2)} TND</p>
                             </div>
                           </div>

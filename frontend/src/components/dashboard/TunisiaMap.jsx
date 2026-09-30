@@ -63,7 +63,7 @@ export default function TunisiaMap({ regionData, onRegionClick, selectedRegion }
           const data       = regionMap[region];
           const revenue    = data ? parseFloat(data.revenue) : 0;
           const isSelected = selectedRegion === region;
-          const fill       = isSelected ? '#4f46e5' : getColor(revenue, maxRevenue);
+          const fill       = isSelected ? '#0d9488' : getColor(revenue, maxRevenue);
 
           return (
             <path
@@ -81,7 +81,7 @@ export default function TunisiaMap({ regionData, onRegionClick, selectedRegion }
               }
               onClick={() => onRegionClick(region === selectedRegion ? '' : region)}
               onMouseEnter={e => { if (!isSelected) e.target.setAttribute('fill', '#818cf8'); }}
-              onMouseLeave={e => { e.target.setAttribute('fill', isSelected ? '#4f46e5' : fill); }}
+              onMouseLeave={e => { e.target.setAttribute('fill', isSelected ? '#0d9488' : fill); }}
             />
           );
         })}
@@ -97,13 +97,13 @@ export default function TunisiaMap({ regionData, onRegionClick, selectedRegion }
         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Low</span>
         <div style={{
           width: 120, height: 10, borderRadius: 4,
-          background: 'linear-gradient(to right, #e0e7ff, #3730a3)',
+          background: 'linear-gradient(to right, #99f6e4, #115e59)',
         }} />
         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>High</span>
         {selectedRegion && (
           <span style={{
             marginLeft: '1rem', fontSize: '0.72rem',
-            background: '#ede9fe', color: '#4f46e5',
+            background: '#ccfbf1', color: '#0d9488',
             padding: '0.15rem 0.5rem', borderRadius: '999px', fontWeight: 600,
           }}>
             Active filter: {selectedRegion}

@@ -91,7 +91,7 @@ export default function AuditLogsPage() {
                     <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{log.id}</td>
                     <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {new Date(log.timestamp).toLocaleDateString('en-GB')}{' '}
-                      <span style={{ color: '#94a3b8' }}>
+                      <span style={{ color: 'var(--text-faint)' }}>
                         {new Date(log.timestamp).toLocaleTimeString('en-GB')}
                       </span>
                     </td>

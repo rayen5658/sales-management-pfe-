@@ -1,0 +1,142 @@
+/* ── Loading spinner ── */
+.spinner-lg {
+  width: 40px; height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: paySpin 0.8s linear infinite;
+}
+@keyframes paySpin { to { transform: rotate(360deg); } }
+
+/* ── Hero banner ── */
+.pay-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 55%, #134e4a 100%);
+  box-shadow: 0 10px 30px rgba(13,148,136,0.28);
+  animation: payFadeIn 0.4s ease;
+}
+.pay-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 85% -20%, rgba(255,255,255,0.18), transparent 55%);
+  pointer-events: none;
+}
+.pay-hero-left { display: flex; align-items: center; gap: 1rem; position: relative; z-index: 1; }
+.pay-hero-icon {
+  width: 52px; height: 52px; border-radius: 14px;
+  background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.25);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; flex-shrink: 0;
+  backdrop-filter: blur(4px);
+}
+.pay-hero-title { color: #fff; font-weight: 800; font-size: 1.05rem; margin: 0 0 0.3rem; }
+.pay-hero-sub { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; font-weight: 600; color: rgba(255,255,255,0.85); margin: 0; }
+
+.pay-hero-badge {
+  position: relative; z-index: 1;
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em;
+  color: #fff; background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 0.3rem 0.7rem; border-radius: 999px;
+}
+
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: #4ade80;
+  animation: payPulse 2s infinite;
+}
+.pulse-dot.off { background: rgba(255,255,255,0.5); animation: none; }
+
+@keyframes payPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(74,222,128,0.65); }
+  70%  { box-shadow: 0 0 0 9px rgba(74,222,128,0); }
+  100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+}
+
+/* ── Toggle switch ── */
+.toggle-switch {
+  width: 46px; height: 25px; border-radius: 999px;
+  background: rgba(255,255,255,0.25);
+  border: 1px solid rgba(255,255,255,0.35);
+  position: relative; cursor: pointer; flex-shrink: 0;
+  transition: background 0.25s ease;
+}
+.toggle-switch.on { background: #10b981; border-color: #10b981; }
+.toggle-switch.disabled { opacity: 0.45; cursor: not-allowed; }
+.toggle-switch .knob {
+  width: 19px; height: 19px; border-radius: 50%; background: #fff;
+  position: absolute; top: 2px; left: 2px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+.toggle-switch.on .knob { transform: translateX(21px); }
+
+/* variant for placement on a light card background instead of the teal hero */
+.toggle-switch.light { background: var(--border); border-color: var(--border); }
+.toggle-switch.light.on { background: linear-gradient(135deg,#14b8a6,#0d9488); border-color: transparent; }
+
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.toggle-row-label { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+.toggle-row-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.1rem; }
+
+/* ── Method cards layout ── */
+.pay-methods-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .pay-methods-grid { grid-template-columns: 1fr; }
+}
+
+.pay-card {
+  animation: payFadeIn 0.4s ease both;
+}
+.pay-card:nth-child(2) { animation-delay: 0.08s; }
+
+@keyframes payFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pay-field {
+  animation: payFadeIn 0.35s ease both;
+}
+.pay-field:nth-of-type(1) { animation-delay: 0.05s; }
+.pay-field:nth-of-type(2) { animation-delay: 0.1s; }
+
+/* ── Method card header ── */
+.method-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+.method-icon {
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.method-icon.konnect { background: linear-gradient(135deg,#0ea5e9,#0369a1); }
+.method-icon.bank    { background: linear-gradient(135deg,#f59e0b,#b45309); }
+.method-title { font-weight: 700; font-size: 0.95rem; color: var(--text); margin: 0 0 0.2rem; }
+.method-pill {
+  display: inline-block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em;
+  padding: 0.12rem 0.5rem; border-radius: 999px;
+  background: var(--card-bg-2); color: var(--text-muted);
+}
+.method-pill.on { background: var(--success-bg); color: var(--success-text); }
+.method-note { font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; margin: 0 0 1.1rem; }
+
+/* ── Save button micro-interaction ── */
+.btn-pay-save {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-pay-save:active:not(:disabled) { transform: scale(0.97); }

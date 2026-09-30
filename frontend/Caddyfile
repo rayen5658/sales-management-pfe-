@@ -1,0 +1,17 @@
+{$DOMAIN:localhost} {
+	encode gzip
+
+	# API calls go to the backend container — same origin as the site itself,
+	# so the browser never has to deal with CORS at all in production.
+	handle /api/* {
+		reverse_proxy backend:5000
+	}
+
+	# Everything else: serve the built React app, falling back to index.html
+	# for client-side routes (so /orders, /dashboard, etc. work on refresh).
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

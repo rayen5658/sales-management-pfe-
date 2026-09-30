@@ -275,10 +275,10 @@ router.post('/chat', verifyToken, async (req, res) => {
     const roleKey = roleAllows(roleName);
 
     if (!message || !String(message).trim()) {
-      return res.status(400).json({ error: 'Message cannot be empty' });
+      return res.status(400).json({ message: 'Message cannot be empty' });
     }
 
-    const userId = req.user.id || req.user.user_id;
+    const userId = req.user.id;
     const intent = detectIntent(message);
 
     // Optional: parse order id from message for tracking
@@ -299,7 +299,7 @@ router.post('/chat', verifyToken, async (req, res) => {
 
     const geminiApiKey = process.env.GEMINI_API_KEY;
     if (!geminiApiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY is missing on server' });
+      return res.status(500).json({ message: 'AI service not configured on server' });
     }
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
@@ -332,7 +332,7 @@ router.post('/chat', verifyToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Chatbot Gemini error:', error);
-    return res.status(500).json({ error: error.message || 'An error occurred while processing your request' });
+    return res.status(500).json({ message: 'An error occurred while processing your request' });
   }
 });
 

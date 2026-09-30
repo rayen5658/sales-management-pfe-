@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: always
+    env_file: ./backend/.env
+    environment:
+      # Override just the DB connection to point at the "db" container instead
+      # of localhost — everything else (JWT_SECRET, SMTP, ENCRYPTION_KEY,
+      # KONNECT_*) is reused as-is from your existing backend/.env.
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: /api
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Set DOMAIN in a root .env file to your real domain (e.g. sales.yourbrand.com)
+      # once you have one pointed at this server — Caddy then provisions HTTPS
+      # automatically. Leave unset for local testing (plain HTTP on localhost).
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:

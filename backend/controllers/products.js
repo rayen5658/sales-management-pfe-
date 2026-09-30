@@ -1,36 +1,78 @@
 const pool = require('../db');
 const fs = require('fs');
 
-const { TVA_RATE, handleControllerError, handleValidationErrors } = require('./shared');
+const { handleControllerError, handleValidationErrors, writeAuditLog } = require('./shared');
+const { LOW_STOCK_THRESHOLD } = require('../constants');
 
-// GET ALL PRODUCTS — supports ?page=1&limit=20 for pagination
+// GET ALL PRODUCTS — supports pagination + search + category + stock filters
 const getAllProducts = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
 
-    const countResult = await pool.query('SELECT COUNT(*) AS total FROM product');
+    const { search, category_id, low_stock } = req.query;
+
+    // Safe whitelist for sort fields — never interpolate user input directly
+    const ALLOWED_SORT_FIELDS = {
+      name:       'p.name',
+      reference:  'p.reference',
+      unit_price: 'p.unit_price',
+      stock:      'p.stock',
+      id:         'p.id',
+    };
+    const sortField = ALLOWED_SORT_FIELDS[req.query.sort_by] || 'p.name';
+    const sortDir   = req.query.sort_dir === 'desc' ? 'DESC' : 'ASC';
+
+    const where = [];
+    const params = [];
+    let i = 1;
+
+    if (search) {
+      where.push(`(p.name ILIKE $${i} OR p.reference ILIKE $${i})`);
+      params.push(`%${search}%`);
+      i++;
+    }
+    if (category_id) {
+      where.push(`p.category_id = $${i++}`);
+      params.push(parseInt(category_id));
+    }
+    if (low_stock === 'true' || low_stock === '1') {
+      // A product with variants uses variant stock, not its own — flag it as low stock only
+      // if a variant is low, not based on the (possibly irrelevant) base product.stock.
+      where.push(`(
+        (p.stock <= ${LOW_STOCK_THRESHOLD} AND NOT EXISTS(SELECT 1 FROM product_variant pv WHERE pv.product_id=p.id))
+        OR EXISTS(SELECT 1 FROM product_variant pv WHERE pv.product_id=p.id AND pv.stock <= ${LOW_STOCK_THRESHOLD})
+      )`);
+    }
+
+    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) AS total FROM product p ${whereClause}`, params
+    );
     const total = parseInt(countResult.rows[0].total);
 
     const result = await pool.query(
-      'SELECT * FROM product ORDER BY id ASC LIMIT $1 OFFSET $2',
-      [limit, offset]
+      `SELECT p.*, c.name AS category_name
+       FROM product p
+       LEFT JOIN category c ON p.category_id = c.id
+       ${whereClause}
+       ORDER BY ${sortField} ${sortDir} LIMIT $${i} OFFSET $${i + 1}`,
+      [...params, limit, offset]
     );
 
     res.json({
       data: result.rows,
       pagination: {
-        page,
-        limit,
-        total,
+        page, limit, total,
         totalPages: Math.ceil(total / limit),
         hasNext: page * limit < total,
         hasPrev: page > 1,
       },
     });
   } catch (error) {
-    console.error('DB/controller error:', error);
+    console.error('getAllProducts error:', error);
     return handleControllerError(res, error, 500);
   }
 };
@@ -58,6 +100,14 @@ const createProduct = async (req, res) => {
   try {
     const { reference, name, description, unit_price, stock, image, category_id } = req.body;
 
+    // Check for duplicate reference before inserting
+    if (reference) {
+      const existing = await pool.query('SELECT id FROM product WHERE reference = $1', [reference]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ message: `A product with reference "${reference}" already exists. References must be unique.` });
+      }
+    }
+
     const result = await pool.query(
       `INSERT INTO product (reference, name, description, unit_price, stock, image, category_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -66,7 +116,11 @@ const createProduct = async (req, res) => {
     );
 
     res.status(201).json(result.rows[0]);
+    await writeAuditLog(req.user?.id, 'PRODUCT_CREATE', `Product created: "${name}" (ref: ${reference || 'none'})`);
   } catch (error) {
+    if (error.code === '23505' && error.constraint === 'product_reference_key') {
+      return res.status(409).json({ message: `A product with this reference already exists. References must be unique.` });
+    }
     return handleControllerError(res, error, 500);
   }
 };
@@ -77,6 +131,14 @@ const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const { reference, name, description, unit_price, stock, image, category_id } = req.body;
+
+    // Check for duplicate reference on another product
+    if (reference) {
+      const existing = await pool.query('SELECT id FROM product WHERE reference = $1 AND id != $2', [reference, id]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ message: `Another product already uses reference "${reference}". References must be unique.` });
+      }
+    }
 
     const result = await pool.query(
       `UPDATE product 
@@ -91,8 +153,13 @@ const updateProduct = async (req, res) => {
     }
 
     res.json(result.rows[0]);
+    await writeAuditLog(req.user?.id, 'PRODUCT_UPDATE', `Product #${id} updated: "${result.rows[0].name}"`);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error.code === '23505' && error.constraint === 'product_reference_key') {
+      return res.status(409).json({ message: `Another product already uses this reference. References must be unique.` });
+    }
+    console.error('updateProduct:', error.message);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -111,14 +178,16 @@ const deleteProduct = async (req, res) => {
       message: 'Product deleted successfully',
       product: result.rows[0],
     });
+    await writeAuditLog(req.user?.id, 'PRODUCT_DELETE', `Product deleted: "${result.rows[0].name}" #${id}`);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('deleteProduct:', error.message);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 // IMPORT PRODUCTS FROM CSV
 const importProductsCSV = async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Aucun fichier fourni' });
+  if (!req.file) return res.status(400).json({ message: 'No file provided' });
 
   const filePath = req.file.path;
   try {
@@ -127,7 +196,7 @@ const importProductsCSV = async (req, res) => {
 
     if (lines.length < 2) {
       fs.unlinkSync(filePath);
-      return res.status(400).json({ error: 'Le fichier est vide ou ne contient que l\'en-tête' });
+      return res.status(400).json({ message: 'The file is empty or contains only the header row' });
     }
 
     // Detect separator (semicolon or comma)
@@ -155,7 +224,7 @@ const importProductsCSV = async (req, res) => {
     if (iName === -1 || iPrice === -1 || iStock === -1) {
       fs.unlinkSync(filePath);
       return res.status(400).json({
-        error: 'Colonnes requises manquantes. Le fichier doit contenir : nom (ou name), prix (ou price), stock',
+        error: 'Required columns missing. File must contain: name (or nom), price (or prix), stock',
       });
     }
 
@@ -184,7 +253,7 @@ const importProductsCSV = async (req, res) => {
       }
 
       if (isNaN(unit_price) || isNaN(stock)) {
-        results.errors.push(`Ligne ${i + 1} ignorée — prix ou stock invalide`);
+        results.errors.push(`Row ${i + 1} skipped — invalid price or stock`);
         continue;
       }
 
@@ -212,18 +281,19 @@ const importProductsCSV = async (req, res) => {
           results.inserted++;
         }
       } catch (rowErr) {
-        results.errors.push(`Ligne ${i + 1} (${name}) — ${rowErr.message}`);
+        results.errors.push(`Row ${i + 1} (${name}) — ${rowErr.message}`);
       }
     }
 
     fs.unlinkSync(filePath);
     res.json({
-      message: `Import terminé : ${results.inserted} ajouté(s), ${results.updated} mis à jour`,
+      message: `Import complete: ${results.inserted} inserted, ${results.updated} updated`,
       ...results,
     });
   } catch (err) {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    res.status(500).json({ error: err.message });
+    console.error('importProductsCSV:', err.message);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 

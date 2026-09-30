@@ -1,25 +1,145 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --primary: #4f46e5;
-  --primary-dark: #3730a3;
-  --primary-light: #eef2ff;
+  --primary: #0d9488;
+  --primary-dark: #0f766e;
+  --primary-light: #f0fdfa;
+  --accent: #0891b2;
+  --accent-dark: #0e7490;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
   --info: #3b82f6;
-  --sidebar-bg: #1e1b4b;
-  --sidebar-text: #c7d2fe;
-  --sidebar-active: #4f46e5;
+  --sidebar-bg: #0f2e2b;
+  --sidebar-text: #99f6e4;
+  --sidebar-active: #0d9488;
   --bg: #f8fafc;
   --card-bg: #ffffff;
+  --card-bg-2: #f1f5f9;
   --text: #1e293b;
   --text-muted: #64748b;
+  --text-faint: #9ca3af;
   --border: #e2e8f0;
   --radius: 12px;
   --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
   --shadow-lg: 0 10px 40px rgba(0,0,0,0.12);
+
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+  --danger-text: #991b1b;
+  --success-bg: #f0fdf4;
+  --success-border: #86efac;
+  --success-text: #166534;
+
+  /* Tinted surfaces for role banners / KPI cards — flat colors, not gradients,
+     so dark mode can redefine them as muted washes instead of pastel cutouts. */
+  --warning-bg: #fffbeb;
+  --warning-border: #fcd34d;
+  --warning-text: #92400e;
+  --warning-text-soft: #b45309;
+  --purple-bg: #fdf4ff;
+  --purple-border: #e9d5ff;
+  --purple-text: #7c3aed;
+  --blue-bg: #eff6ff;
+  --blue-border: #bfdbfe;
+  --blue-text: #2563eb;
+  --orange-bg: #fff7ed;
+  --orange-border: #fed7aa;
+  --orange-text: #ea580c;
 }
+
+/* ── Dark mode ────────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --card-bg: #161b22;
+  --card-bg-2: #21262d;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --text-faint: #6e7681;
+  --border: #30363d;
+  --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.3);
+  --shadow-lg: 0 10px 40px rgba(0,0,0,0.5);
+  --primary-light: color-mix(in srgb, #0d9488 18%, var(--card-bg));
+  color-scheme: dark;
+
+  --danger-bg: #2d0f0f;
+  --danger-border: #da3633;
+  --danger-text: #f85149;
+  --success-bg: #162312;
+  --success-border: #1a7f37;
+  --success-text: #3fb950;
+
+  /* Muted washes instead of light-mode pastels — mixed against the dark card
+     surface so they read as "tinted dark card", not a bright cutout. */
+  --warning-bg: color-mix(in srgb, #f59e0b 14%, var(--card-bg));
+  --warning-border: color-mix(in srgb, #f59e0b 45%, var(--border));
+  --warning-text: #fbbf24;
+  --warning-text-soft: #d9a441;
+  --purple-bg: color-mix(in srgb, #a855f7 16%, var(--card-bg));
+  --purple-border: color-mix(in srgb, #a855f7 45%, var(--border));
+  --purple-text: #d8b4fe;
+  --blue-bg: color-mix(in srgb, #3b82f6 15%, var(--card-bg));
+  --blue-border: color-mix(in srgb, #3b82f6 45%, var(--border));
+  --blue-text: #93c5fd;
+  --orange-bg: color-mix(in srgb, #f97316 15%, var(--card-bg));
+  --orange-border: color-mix(in srgb, #f97316 45%, var(--border));
+  --orange-text: #fdba74;
+}
+
+/* ── Core layout ── */
+[data-theme="dark"] body,
+[data-theme="dark"] #root {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ── Reusable surface classes (see pages.css) — already var()-driven ── */
+[data-theme="dark"] .card,
+[data-theme="dark"] .modal,
+[data-theme="dark"] .topbar,
+[data-theme="dark"] .table-wrap,
+[data-theme="dark"] .kpi-card,
+[data-theme="dark"] .chart-card {
+  background: var(--card-bg);
+  border-color: var(--border);
+}
+
+/* ── Inputs, selects, textareas without an explicit theme-aware style ── */
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  color-scheme: dark;
+}
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder { color: var(--text-faint); }
+[data-theme="dark"] option { background: var(--card-bg-2); color: var(--text); }
+
+/* ── Tables ── */
+[data-theme="dark"] .data-table th { background: var(--bg); }
+
+/* ── Buttons ── */
+[data-theme="dark"] .btn-ghost {
+  background: var(--card-bg-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+[data-theme="dark"] .btn-ghost:hover { background: var(--border); }
+
+/* ── Sidebar (always dark, keep its own near-black shade) ── */
+[data-theme="dark"] .sidebar {
+  background: #010409;
+  border-color: #21262d;
+}
+
+/* ── Scrollbar ── */
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #30363d; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+/* ── Modal overlay ── */
+[data-theme="dark"] .modal-overlay { background: rgba(1, 4, 9, 0.8); }
+
+/* ── Chart tooltip (rendered by Recharts) ── */
+[data-theme="dark"] .recharts-tooltip-wrapper > div { background: var(--card-bg); border-color: var(--border); }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -35,8 +155,58 @@ a { color: inherit; text-decoration: none; }
 button { cursor: pointer; font-family: inherit; }
 input, select, textarea { font-family: inherit; }
 
+/* ── App shell main content area ── */
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .app-main { padding: 1rem; }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Button ripple effect ── */
+.btn-primary,
+.btn-cta {
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary::after,
+.btn-cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.42) 0%, transparent 62%);
+  transform: scale(0);
+  opacity: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: transform 0.45s ease, opacity 0.45s ease;
+}
+.btn-primary:active::after,
+.btn-cta:active::after {
+  transform: scale(2.8);
+  opacity: 1;
+  transition: 0s;
+}
+
+/* ── Floaty keyframe (global — shared by Dashboard orbs & Welcome orbs) ── */
+@keyframes floaty {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%       { transform: translate3d(0, -16px, 0); }
+}
+
+/* ── Table row entrance animation ── */
+@keyframes rowSlideIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}

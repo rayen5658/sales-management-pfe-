@@ -39,10 +39,20 @@ export const clientPortalService = {
   getMe:           ()       => clientApi.get('/client-portal/me'),
   getProducts:     (params) => clientApi.get('/client-portal/products', { params }),
   getRelated:      (id)     => clientApi.get(`/client-portal/products/${id}/related`),
+  getVariants:     (id)     => clientApi.get(`/client-portal/products/${id}/variants`),
   getCategories:   ()       => clientApi.get('/client-portal/categories'),
   placeOrder:      (data)   => clientApi.post('/client-portal/orders', data),
   getOrders:       ()       => clientApi.get('/client-portal/orders'),
   getOrderById:    (id)     => clientApi.get(`/client-portal/orders/${id}`),
+  cancelOrder:     (id, cancel_reason) => clientApi.post(`/client-portal/orders/${id}/cancel`, { cancel_reason }),
+  payOrder:        (id)     => clientApi.post(`/client-portal/orders/${id}/pay`),
+  payByTransfer:   (id)     => clientApi.post(`/client-portal/orders/${id}/pay-by-transfer`),
+  getPaymentStatus:(id)     => clientApi.get(`/client-portal/orders/${id}/payment-status`),
+  getPaymentAvailability: () => clientApi.get('/client-portal/payment-availability'),
+  requestReturn:   (id, reason) => clientApi.post(`/client-portal/orders/${id}/return-request`, { reason }),
+  getReturnStatus: (id)         => clientApi.get(`/client-portal/orders/${id}/return`),
+  submitFeedback:  (id, data)   => clientApi.post(`/client-portal/orders/${id}/feedback`, data),
+  getFeedbackStatus: (id)       => clientApi.get(`/client-portal/orders/${id}/feedback`),
 };
 
 // Admin-only: manage portal access (uses staff token from main api.js)

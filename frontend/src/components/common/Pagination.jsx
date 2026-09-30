@@ -33,7 +33,7 @@ export default function Pagination({ pagination, onPageChange, loading = false }
     minWidth: '2rem', height: '2rem', padding: '0 0.5rem',
     borderRadius: '6px', border: '1.5px solid var(--border)',
     fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-    transition: 'all 0.15s', background: '#fff', color: 'var(--text)',
+    transition: 'all 0.15s', background: 'var(--card-bg)', color: 'var(--text)',
     lineHeight: 1,
   };
   const btnActive  = { ...btnBase, background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' };

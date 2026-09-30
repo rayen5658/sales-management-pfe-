@@ -57,7 +57,7 @@ export const useDataStore = create((set) => ({
       set(state => ({ products: [...state.products, newProduct], productsLoading: false }));
       return newProduct;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Erreur lors de la création';
+      const msg = err.response?.data?.message || 'Error during creation';
       set({ productsError: msg, productsLoading: false });
       throw err;
     }
@@ -74,7 +74,7 @@ export const useDataStore = create((set) => ({
       }));
       return updated;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Erreur lors de la mise à jour';
+      const msg = err.response?.data?.message || 'Error during update';
       set({ productsError: msg, productsLoading: false });
       throw err;
     }
@@ -117,7 +117,7 @@ export const useDataStore = create((set) => ({
       set(state => ({ clients: [...state.clients, newClient], clientsLoading: false }));
       return newClient;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Erreur lors de la création';
+      const msg = err.response?.data?.message || 'Error during creation';
       set({ clientsError: msg, clientsLoading: false });
       throw err;
     }
@@ -134,7 +134,7 @@ export const useDataStore = create((set) => ({
       }));
       return updated;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Erreur lors de la mise à jour';
+      const msg = err.response?.data?.message || 'Error during update';
       set({ clientsError: msg, clientsLoading: false });
       throw err;
     }
@@ -189,6 +189,23 @@ export const useDataStore = create((set) => ({
     }
   },
 
+  approveClient: async (id) => {
+    set({ clientsLoading: true, clientsError: null });
+    try {
+      const response = await clientService.approve(id);
+      const updated = response.data.client;
+      set(state => ({
+        clients: state.clients.map(c => (c.id === id ? updated : c)),
+        clientsLoading: false,
+      }));
+      return updated;
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Error during approval';
+      set({ clientsError: msg, clientsLoading: false });
+      throw err;
+    }
+  },
+
   // ========== ORDERS ==========
   fetchOrders: async (params = {}) => {
     set({ ordersLoading: true, ordersError: null });
@@ -217,7 +234,7 @@ export const useDataStore = create((set) => ({
       set(state => ({ orders: [...state.orders, newOrder], ordersLoading: false }));
       return newOrder;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Erreur lors de la création';
+      const msg = err.response?.data?.message || 'Error during creation';
       set({ ordersError: msg, ordersLoading: false });
       throw err;
     }
@@ -280,7 +297,7 @@ export const useDataStore = create((set) => ({
       set(state => ({ categories: [...state.categories, newCat], categoriesLoading: false }));
       return newCat;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Erreur lors de la création';
+      const msg = err.response?.data?.message || 'Error during creation';
       set({ categoriesError: msg, categoriesLoading: false });
       throw err;
     }
@@ -297,7 +314,7 @@ export const useDataStore = create((set) => ({
       }));
       return updated;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Erreur lors de la mise à jour';
+      const msg = err.response?.data?.message || 'Error during update';
       set({ categoriesError: msg, categoriesLoading: false });
       throw err;
     }

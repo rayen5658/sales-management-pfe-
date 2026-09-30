@@ -30,6 +30,11 @@ function detectIntent(msg) {
   if (/(my order|my orders|commande|mes commandes|order history|order list)/i.test(m)) return 'my_orders';
   if (/(order #?\d+|commande #?\d+|track|tracking|where is|status of|statut|état)/i.test(m)) return 'order_detail';
   if (/(cancel|annul)/i.test(m) && /order|commande/i.test(m)) return 'cancel_info';
+  // Must be checked before the generic 'products' intent below — otherwise a
+  // counting question like "how many products are there" gets treated as a
+  // catalog search (its own text becomes the search keyword, which matches
+  // nothing) instead of being recognized as a count question.
+  if (/how many product|combien.*produit|nombre.*produit|product count|total.*product|products?.*(available|in stock|do you (have|sell)|are there)/i.test(m)) return 'product_count';
   if (/(product|produit|catalog|catalogue|available|disponible|stock|price|prix)/i.test(m)) return 'products';
   if (/(account|profile|compte|profil|my info|my details|mes infos)/i.test(m)) return 'account';
   if (/(total|spent|dépensé|revenue|amount|montant|how much)/i.test(m)) return 'spending';
@@ -41,7 +46,11 @@ function detectIntent(msg) {
   // If a number is present assume they're asking about a specific order
   if (extractNumber(m) !== null) return 'order_detail';
 
-  return 'unknown';
+  // Nothing else matched — default to a catalog search rather than a dead
+  // end. This is a shopping portal, so free text like "printers" or "cisco
+  // switch" most likely means "find me this product", and getProducts()
+  // already degrades gracefully to "no results" if it truly matches nothing.
+  return 'products';
 }
 
 // ── Query helpers ───────────────────────────────────────────────────────────────
@@ -86,14 +95,36 @@ async function getOrderDetail(clientId, orderId) {
   return { order: orders[0], lines, history };
 }
 
+async function getProductCount() {
+  const { rows } = await pool.query(`SELECT COUNT(*) AS total FROM product WHERE stock > 0`);
+  return parseInt(rows[0].total, 10);
+}
+
 async function getProducts(searchTerm) {
-  let query = `SELECT name, reference, unit_price, stock, description FROM product WHERE stock > 0`;
+  let query = `SELECT p.name, p.reference, p.unit_price, p.stock, p.description
+               FROM product p LEFT JOIN category c ON p.category_id = c.id
+               WHERE p.stock > 0`;
   const params = [];
+
   if (searchTerm) {
-    params.push(`%${searchTerm}%`);
-    query += ` AND (name ILIKE $1 OR reference ILIKE $1)`;
+    // Match per word, not as one rigid phrase — "cisco switch" must find
+    // "Cisco SG110-16 ... Switch" even though the words aren't adjacent, and
+    // each word also tries a naive singular form so "laptops"/"printers"
+    // (how people actually type) still matches "...Laptop"/"...Printer" in
+    // the product name. Also searches the category name, since users often
+    // ask by category ("networking") rather than a specific product name.
+    const words = searchTerm.split(/\s+/).filter(Boolean);
+    const wordClauses = words.map(w => {
+      const singular = w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w;
+      params.push(`%${w}%`, `%${singular}%`);
+      const i = params.length - 1, j = params.length;
+      return `(p.name ILIKE $${i} OR p.reference ILIKE $${i} OR c.name ILIKE $${i}
+               OR p.name ILIKE $${j} OR p.reference ILIKE $${j} OR c.name ILIKE $${j})`;
+    });
+    if (wordClauses.length > 0) query += ` AND ${wordClauses.join(' AND ')}`;
   }
-  query += ` ORDER BY name ASC LIMIT 15`;
+
+  query += ` ORDER BY p.name ASC LIMIT 15`;
   const { rows } = await pool.query(query, params);
   return rows;
 }
@@ -181,6 +212,10 @@ function buildResponse(intent, data, msg) {
     return reply;
   }
 
+  if (intent === 'product_count') {
+    return `There are currently **${data}** product(s) available in the catalog.\n\nAsk me "show products" or "show laptops" to browse them.`;
+  }
+
   if (intent === 'products') {
     const products = data;
     if (!products || products.length === 0) {
@@ -242,11 +277,11 @@ router.post('/chat', verifyClientToken, async (req, res) => {
     const clientId = req.client.id;
 
     if (!message || !message.trim()) {
-      return res.status(400).json({ error: 'Message cannot be empty' });
+      return res.status(400).json({ message: 'Message cannot be empty' });
     }
 
     if (!checkRateLimit(clientId)) {
-      return res.status(429).json({ error: 'Too many messages. Please wait a few seconds.' });
+      return res.status(429).json({ message: 'Too many messages. Please wait a few seconds.' });
     }
 
     const intent = detectIntent(message);
@@ -255,13 +290,17 @@ router.post('/chat', verifyClientToken, async (req, res) => {
 
     if (intent === 'my_orders') {
       data = await getMyOrders(clientId);
+    } else if (intent === 'product_count') {
+      data = await getProductCount();
     } else if (intent === 'order_detail') {
       const orderId = extractNumber(m);
       data = orderId ? await getOrderDetail(clientId, orderId) : null;
     } else if (intent === 'products') {
-      // Extract optional search keyword — strip common words
-      const stopWords = /product|produit|catalog|catalogue|available|disponible|show|afficher|find|trouver|search|cherche|price|prix|stock/gi;
-      const keyword = m.replace(stopWords, '').replace(/[^a-z0-9 ]/g, '').trim();
+      // Extract optional search keyword — strip common words and filler words
+      // (e.g. "show me laptops" must reduce to "laptops", not "me laptops",
+      // or the ILIKE search matches nothing and it looks broken).
+      const stopWords = /\b(product|produit|catalog|catalogue|available|disponible|show|afficher|find|trouver|search|cherche|price|prix|stock|me|us|some|any|a|an|the|for|of|please|want|looking|need|do you (have|sell)|is there|are there)\b/gi;
+      const keyword = m.replace(stopWords, ' ').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
       data = await getProducts(keyword || null);
     } else if (intent === 'account') {
       data = await getClientAccount(clientId);
@@ -274,7 +313,7 @@ router.post('/chat', verifyClientToken, async (req, res) => {
     return res.json({ success: true, message: reply });
   } catch (error) {
     console.error('Client chatbot error:', error);
-    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    return res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 });
 

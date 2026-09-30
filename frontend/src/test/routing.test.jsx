@@ -117,13 +117,13 @@ describe('Routing — example-based', () => {
     expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
   });
 
-  // 7.5 Unauthenticated user at /dashboard redirects to / (Welcome page)
-  it('7.5 unauthenticated user at /dashboard is redirected away from dashboard', () => {
+  // 7.5 Unauthenticated user at /dashboard is redirected to /login
+  it('7.5 unauthenticated user at /dashboard is redirected to /login', () => {
     setAuth(false);
     renderAt('/dashboard');
     expect(screen.queryByTestId('dashboard-page')).not.toBeInTheDocument();
-    // ProtectedRoute now redirects to / which shows Welcome for guests
-    expect(screen.getByTestId('welcome-page')).toBeInTheDocument();
+    // ProtectedRoute redirects unauthenticated users to /login
+    expect(screen.getByTestId('login-page')).toBeInTheDocument();
   });
 
   // 7.6 Catch-all unknown route redirects to / (which shows Welcome for guests)

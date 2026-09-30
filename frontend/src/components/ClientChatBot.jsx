@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useClientAuthStore } from '../stores/clientAuthStore';
 import '../styles/ChatBot.css';
+import '../utils/chatbotScreenReader';
+
 
 export default function ClientChatBot() {
   const [messages, setMessages] = useState([]);
@@ -28,14 +30,20 @@ export default function ClientChatBot() {
     try {
       const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
+      const screenData = window.__chatbotExtractScreenData?.() || {};
+
       const response = await fetch(`${apiUrl}/client-chatbot/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({
+          message: userMessage,
+          screenData,
+        }),
       });
+
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
@@ -117,7 +125,7 @@ export default function ClientChatBot() {
       <div className="chatbot-messages">
         {messages.length === 0 && (
           <div className="chatbot-welcome">
-            <p style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b' }}>Hello! I'm your personal assistant.</p>
+            <p style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text)' }}>Hello! I'm your personal assistant.</p>
             <p>Ask me about:</p>
             <ul>
               <li>Your orders &amp; tracking</li>
