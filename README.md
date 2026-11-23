@@ -1,6 +1,6 @@
-﻿# GestionVentes â€” Sales Management System
+# GestionVentes — Sales Management System
 
-A full-stack B2B sales management application built as a final-year project (PFE). It covers the complete sales cycle: product catalog, client management, order lifecycle, real-time analytics, and a dedicated client portal â€” with role-based access control across three staff roles.
+A full-stack B2B sales management application built as a final-year project (PFE). It covers the complete sales cycle: product catalog, client management, order lifecycle, real-time analytics, and a dedicated client portal — with role-based access control across three staff roles.
 
 ---
 
@@ -24,12 +24,12 @@ A full-stack B2B sales management application built as a final-year project (PFE
 
 | Role | Access |
 |---|---|
-| **Administrator** | Full access â€” all modules, users, audit logs, analytics |
-| **Manager** | Business management â€” orders, products, clients, analytics (no user management) |
-| **Sales Agent** | Personal view â€” own orders, own clients, create/edit pending orders only |
+| **Administrator** | Full access — all modules, users, audit logs, analytics |
+| **Manager** | Business management — orders, products, clients, analytics (no user management) |
+| **Sales Agent** | Personal view — own orders, own clients, create/edit pending orders only |
 
 - Real-time dashboard with KPIs, revenue charts, Tunisia regional map, top products/clients
-- Full order lifecycle: Pending â†’ Confirmed â†’ Shipped â†’ Delivered + cancel with stock restore
+- Full order lifecycle: Pending → Confirmed → Shipped → Delivered + cancel with stock restore
 - First Delivery API integration (shipping simulation)
 - PDF invoice generation
 - Bulk order actions (Admin/Manager)
@@ -67,11 +67,24 @@ psql -U postgres -d your_db_name -f backend/migrations/001_add_order_tracking.sq
 psql -U postgres -d your_db_name -f backend/migrations/002_client_portal.sql
 psql -U postgres -d your_db_name -f backend/migrations/003_delivery_tracking.sql
 psql -U postgres -d your_db_name -f backend/migrations/004_add_estimated_delivery.sql
-psql -U postgres -d your_db_name -f backend/migrations/011_seed_tech_products.sql
-psql -U postgres -d your_db_name -f backend/migrations/psql -U postgres -d your_db_name -f backend/migrations/006_local_images_only.sql
+psql -U postgres -d your_db_name -f backend/migrations/005_product_images.sql
+psql -U postgres -d your_db_name -f backend/migrations/006_local_images_only.sql
 psql -U postgres -d your_db_name -f backend/migrations/007_update_jpg_images.sql
+psql -U postgres -d your_db_name -f backend/migrations/008_cleanup_old_products.sql
 psql -U postgres -d your_db_name -f backend/migrations/009_seed_orders.sql
 psql -U postgres -d your_db_name -f backend/migrations/010_seed_regional_clients_orders.sql
+psql -U postgres -d your_db_name -f backend/migrations/011_seed_tech_products.sql
+psql -U postgres -d your_db_name -f backend/migrations/012_check_images.sql
+psql -U postgres -d your_db_name -f backend/migrations/013_discount_and_reorder.sql
+psql -U postgres -d your_db_name -f backend/migrations/013_password_reset.sql
+psql -U postgres -d your_db_name -f backend/migrations/014_order_payments.sql
+psql -U postgres -d your_db_name -f backend/migrations/015_payment_settings.sql
+psql -U postgres -d your_db_name -f backend/migrations/016_payment_methods.sql
+psql -U postgres -d your_db_name -f backend/migrations/017_returns_feedback.sql
+psql -U postgres -d your_db_name -f backend/migrations/018_dashboard_goal.sql
+psql -U postgres -d your_db_name -f backend/migrations/019_suppliers_purchase_orders.sql
+psql -U postgres -d your_db_name -f backend/migrations/020_client_credit_terms.sql
+psql -U postgres -d your_db_name -f backend/migrations/021_product_variants.sql
 ```
 
 ### 2. Backend
@@ -114,13 +127,13 @@ DB_PASSWORD=your_password
 PORT=5000
 JWT_SECRET=your_secret_key_here
 
-# Optional â€” email notifications (Nodemailer)
+# Optional — email notifications (Nodemailer)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your@gmail.com
 SMTP_PASS=your_app_password
 
-# Optional â€” Gemini AI chatbot (leave empty to use rule-based fallback)
+# Optional — Gemini AI chatbot (leave empty to use rule-based fallback)
 GEMINI_API_KEY=
 ```
 
@@ -134,7 +147,7 @@ VITE_API_BASE_URL=http://localhost:5000/api
 
 ## Demo Credentials
 
-### Admin / Staff Portal (`/login` â†’ Admin / Staff)
+### Admin / Staff Portal (`/login` → Admin / Staff)
 
 | Role | Email | Password |
 |---|---|---|
@@ -142,7 +155,7 @@ VITE_API_BASE_URL=http://localhost:5000/api
 | Manager | `manager@sales.com` | `manager123` |
 | Sales Agent | `agent@sales.com` | `agent123` |
 
-### Client Portal (`/login` â†’ Client Portal)
+### Client Portal (`/login` → Client Portal)
 
 Clients must have portal access enabled by an Administrator or Manager from the Clients page.  
 Default seeded client: contact your admin to enable portal access and set a password.
@@ -216,4 +229,4 @@ Frontend tests use Vitest + React Testing Library.
 
 ## License
 
-PFE project â€” Dynamix Services Â· 2026
+PFE project — Dynamix Services · 2026
